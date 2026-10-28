@@ -1,0 +1,5 @@
+/.bundle/
+/bin/*-server
+/bin/*.tmp
+/tmp/
+/vendor/

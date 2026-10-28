@@ -1,0 +1,2 @@
+[dependencies]
+pg = { git = "https://github.com/rubys/spinel-pg.git", ref = "5ff0188b0e8dffc88337723411ac725ee2659ff7" }

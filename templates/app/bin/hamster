@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require "bundler/setup"
+require "hamster/cli"
+exit Hamster::CLI.run(ARGV)

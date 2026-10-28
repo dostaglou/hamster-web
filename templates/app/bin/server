@@ -1,0 +1,8 @@
+require "spinner"
+require_relative "../config/application"
+application = __APP_MODULE__.build
+begin
+  Spinner::Server.new(application, host: ENV.fetch("HOST", "127.0.0.1"), port: ENV.fetch("PORT", "4000").to_i).run
+ensure
+  application.shutdown
+end

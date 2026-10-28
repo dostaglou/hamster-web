@@ -1,0 +1,3 @@
+source "https://rubygems.org"
+gem "hamster-web", "= __HAMSTER_VERSION__", require: "hamster/web"
+gem "spinel-spinner", "= 0.1.0.pre.1", require: "spinner"

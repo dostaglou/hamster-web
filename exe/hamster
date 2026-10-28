@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "rbconfig"
+
+# Resolve the application's version before activating this executable's gem.
+# A global preview can otherwise supply stale source paths to Spinel even
+# when the application's Gemfile points at a newer framework checkout.
+unless ARGV.first == "new"
+  root = Dir.pwd
+  loop do
+    binstub = File.join(root, "bin/hamster")
+    if File.file?(File.join(root, "config/hamster.json")) && File.file?(binstub)
+      exec(RbConfig.ruby, binstub, *ARGV) unless File.expand_path(binstub) == File.expand_path(__FILE__)
+      break
+    end
+    parent = File.dirname(root)
+    break if parent == root
+    root = parent
+  end
+end
+
+require "hamster/cli"
+exit Hamster::CLI.run(ARGV)
