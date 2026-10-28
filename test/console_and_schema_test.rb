@@ -82,6 +82,8 @@ class ConsoleAndSchemaTest < Minitest::Test
     assert status.success?, output
     assert_includes output, "ConsoleApp"
     assert_includes output, "CONSOLE_CLEANUP"
+    refute_includes output, "workspace = binding"
+    refute_match(/From: .*console\.rb/, output)
   end
 
   def test_schema_validation_is_read_only_and_reports_mismatches

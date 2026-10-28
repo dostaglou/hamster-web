@@ -12,18 +12,23 @@ module Hamster
           if block_given?
             yield workspace
           else
-            require "irb"
-            workspace.irb
+            start(workspace)
           end
         end
       elsif block_given?
         yield binding
       else
-        require "irb"
-        binding.irb
+        start(binding)
       end
     ensure
       application.shutdown
     end
+
+    def self.start(workspace)
+      require "irb"
+      IRB.setup(__FILE__, argv: [])
+      IRB::Irb.new(IRB::WorkSpace.new(workspace)).run(IRB.conf)
+    end
+    private_class_method :start
   end
 end
