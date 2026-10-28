@@ -13,7 +13,7 @@ Build and install the local framework preview:
 
 ```sh
 gem build hamster-web.gemspec
-gem install --local hamster-web-0.1.0.pre.1.gem
+gem install --local hamster-web-0.1.0.pre.2.gem
 hamster new MyApp
 cd my_app
 bin/hamster setup
