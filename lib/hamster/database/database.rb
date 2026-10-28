@@ -30,7 +30,7 @@ module Hamster
         end
       end
       begin
-        yield connection
+        Hamster::Record.with_connection(connection) { yield connection }
       ensure
         @pool.checkin(connection)
       end

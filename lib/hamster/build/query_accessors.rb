@@ -8,13 +8,13 @@ module Hamster
   module QueryAccessors
     module_function
 
-    def lines(source)
+    def lines(source, declaration: "field", writers: false)
       tree = Ripper.sexp(source)
       raise "Cannot parse Ruby while generating Query getters" unless tree
       getters = {}
-      visit(tree, [], getters)
+      visit(tree, [], getters, declaration)
       getters.flat_map do |path, names|
-        ["class #{path}"] + names.uniq.map { |name| "  def #{name}; self[:#{name}]; end" } + ["end"]
+        ["class #{path}"] + names.uniq.flat_map { |name| ["  def #{name}; self[:#{name}]; end"] + (writers ? ["  def #{name}=(value); write_attribute(:#{name}, value); end"] : []) } + ["end"]
       end
     end
 
@@ -28,18 +28,18 @@ module Hamster
       end
     end
 
-    def visit(node, scope, getters)
+    def visit(node, scope, getters, declaration)
       return unless node.is_a?(Array)
       if node[0] == :class || node[0] == :module
         name = constant(node[1])
         return unless name
         path = name.start_with?("::") ? name.delete_prefix("::") : (scope + [name]).join("::")
         body = node[node[0] == :class ? 3 : 2]
-        visit(body, [path], getters)
+        visit(body, [path], getters, declaration)
       elsif [:def, :defs].include?(node[0])
         return
-      elsif (node[0] == :command && node[1][1] == "field") ||
-            (node[0] == :method_add_arg && node[1][0] == :fcall && node[1][1][1] == "field")
+      elsif (node[0] == :command && node[1][1] == declaration) ||
+            (node[0] == :method_add_arg && node[1][0] == :fcall && node[1][1][1] == declaration)
         args = node[2]
         args = args[1] if args && args[0] == :arg_paren
         first = args[1][0] if args && args[0] == :args_add_block
@@ -56,7 +56,7 @@ module Hamster
           getters[scope.join("::")] << name
         end
       else
-        node.each { |child| visit(child, scope, getters) if child.is_a?(Array) }
+        node.each { |child| visit(child, scope, getters, declaration) if child.is_a?(Array) }
       end
     end
   end

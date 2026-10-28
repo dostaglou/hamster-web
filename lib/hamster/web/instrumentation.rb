@@ -20,5 +20,9 @@ module Hamster
     def self.instrument(name, attributes: {}, kind: "internal")
       yield({})
     end
+
+    def self.record(name, operation)
+      instrument("record.#{operation}", attributes: {"record.name" => name}) { yield }
+    end
   end
 end

@@ -6,8 +6,8 @@ its HTTP server dependency.
 
 The starter generates and compiles with PostgreSQL support, explicit routes,
 actions, compiled views, and SQL migrations. Database creation and migration
-commands are available. Records/queries, telemetry extraction, asset delivery,
-and console commands remain under development.
+commands and schema-aware records/queries are available. Telemetry extraction,
+asset delivery, and console commands remain under development.
 
 Build and install the local framework preview:
 
@@ -29,3 +29,20 @@ bin/hamster serve
 ```
 
 Run framework tests with `ruby -Ilib -e 'Dir["test/*_test.rb"].sort.each { |file| require_relative file }'`.
+
+## Records and queries
+
+Load `hamster/data` (also loaded by the PostgreSQL adapter) and declare models
+with `Hamster::Table`, `table`, and literal `column` definitions. Columns must
+explicitly opt into writes with `write: :create`, `:update`, or `:both`.
+Creation returns a result with `success?`, `record`, and `errors`; `create!`
+returns the record or raises a typed error. Timestamps are maintained only
+when the model declares created_at or updated_at columns.
+
+`database.with_connection` binds the connection for record writes. Queries
+such as `Post.where(title: "Hello").order(:id).load` return typed rows. Explicit
+callers can also pass `connection:` to query terminal methods or scope writes
+with `Hamster::Record.with_connection(connection)`.
+
+Run `hamster manifest` after adding columns or query fields: it generates the
+static getters and setters used by Spinel. Rebuild after model changes.
