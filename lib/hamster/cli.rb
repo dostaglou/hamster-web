@@ -23,7 +23,7 @@ module Hamster
         Generator.create(args.first)
         0
       when nil, "help", "--help", "-h"
-        puts "Usage: hamster new AppName | setup | manifest | manifest:check | build | serve | routes"
+        puts "Usage: hamster new AppName | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:validate"
         0
       else
         raise ArgumentError, "Unexpected arguments: #{args.join(' ')}" unless args.empty?
@@ -49,6 +49,19 @@ module Hamster
       metadata = JSON.parse(File.read(File.join(app_root, "config/hamster.json")))
       binary = ENV.fetch("HAMSTER_SERVER_BINARY", File.join(app_root, "bin", "#{metadata.fetch('name')}-server"))
       case command
+      when "console", "c", "db:validate"
+        adapter = File.join(app_root, "config/commands.rb")
+        raise "Missing config/commands.rb; add the command adapter from the current app template" unless File.file?(adapter)
+        require adapter
+        if command == "db:validate"
+          require_relative "schema_validation"
+          issues = SchemaValidation.run(ApplicationCommands.database)
+          raise issues.join("\n") unless issues.empty?
+          puts "Database declarations validated (#{Table.registry.length} tables); no migrations were run."
+        else
+          require_relative "console"
+          Console.run(ApplicationCommands.build)
+        end
       when "setup"
         Dir.chdir(app_root) { raise "Dependency installation failed" unless system("bundle", "install") }
         Dir.chdir(app_root) { raise "Spin dependency vendoring failed" unless system("spin", "vendor") } if File.file?(File.join(app_root, "spin.toml"))

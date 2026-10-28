@@ -20,6 +20,12 @@ Run a deployed binary from the application root or set HAMSTER_APP_ROOT.
 Include db/migrations alongside the binary. PostgreSQL TLS is not supported
 by the current driver integration.
 
+Use `bin/hamster console` (alias `c`) for an IRB session with app, application,
+and database variables and a connection scope for record writes and queries.
+Use `bin/hamster db:validate` to check model table/column declarations against
+PostgreSQL without applying migrations. These commands use config/commands.rb,
+which is deliberately excluded from the compiled server's boot chain.
+
 Each endpoint has an action.rb and optional view.html.erb in app/routes/.
 Declare endpoints centrally in app/routes/mappings.rb. Run
 `bin/hamster manifest` after changing Ruby sources or templates and commit

@@ -6,8 +6,8 @@ its HTTP server dependency.
 
 The starter generates and compiles with PostgreSQL support, explicit routes,
 actions, compiled views, and SQL migrations. Database creation and migration
-commands and schema-aware records/queries are available. Telemetry extraction,
-asset delivery, and console commands remain under development.
+commands, the console, and schema-aware records/queries are available.
+Telemetry extraction and asset delivery remain under development.
 
 Build and install the local framework preview:
 
@@ -46,3 +46,16 @@ with `Hamster::Record.with_connection(connection)`.
 
 Run `hamster manifest` after adding columns or query fields: it generates the
 static getters and setters used by Spinel. Rebuild after model changes.
+
+## Console and schema checks
+
+Run `hamster console` (or `hamster c`) in an application. The IRB session exposes
+`app`, `application`, and `database`; record operations use a connection scoped
+to that session. Exit releases the connection and shuts down the application.
+Database environment settings apply as they do to the server.
+
+Run `hamster db:validate` to compare declared tables and columns against the
+configured PostgreSQL database. It reports missing tables/columns, incompatible
+types, and unexpected nullability with a nonzero exit status. It never migrates
+or modifies the schema. Configuration is loaded through config/commands.rb,
+a CRuby-only adapter generated with new applications.
