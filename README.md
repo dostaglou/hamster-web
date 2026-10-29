@@ -13,7 +13,7 @@ Install the public framework preview from RubyGems:
 
 ```sh
 gem install bundler --version 2.5.23
-gem install hamster-web --version 0.1.0.pre.2
+gem install hamster-web --version 0.1.0.pre.3
 hamster new MyApp
 cd my_app
 bin/hamster setup
@@ -63,7 +63,7 @@ a CRuby-only adapter generated with new applications.
 ## Installation contract and Linux verification
 
 The clean-install gate targets Ruby 3.3.6, Bundler 2.5.23, Hamster
-0.1.0.pre.2, Spinner 0.1.0.pre.1, PostgreSQL 16.6, and unmodified Spinel/Spin
+0.1.0.pre.3, Spinner 0.1.0.pre.1, PostgreSQL 16.6, and unmodified Spinel/Spin
 revision `10f112c51666e7ffd308e0ab90a69c2184870c06`. The exact CI inputs live
 in `script/ci/versions.env`; Linux compatibility is verified by the native
 smoke workflow. This pin does not include the experimental benchmark runtime.
@@ -104,7 +104,7 @@ To build a local framework preview instead of installing the public package:
 
 ```sh
 gem build hamster-web.gemspec
-gem install --local hamster-web-0.1.0.pre.2.gem
+gem install --local hamster-web-0.1.0.pre.3.gem
 ```
 
 Run the clean Linux gate locally with Docker running (no local PostgreSQL or
