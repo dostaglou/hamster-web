@@ -136,3 +136,26 @@ Logs, lockfiles, resolved package paths, and HTTP output are retained under
 uploads those diagnostics even on failure. Pull requests and main test the
 candidate package; weekly and manually triggered runs also test published
 packages. Public pins are advanced deliberately when releases are available.
+
+## Generated deployment images
+
+New applications include a multi-stage `Dockerfile`, `.dockerignore`, and a
+`GET /up` liveness endpoint. Build with `docker build -t my_app .`; no host Ruby,
+Spinel, or database is needed. The default image runs the native executable as
+UID 10001 on port 4000, with shared libraries, migrations and public assets only.
+Ruby and the compiler are confined to build/operational stages.
+
+Build `--target migrations` separately and run that image's `db:migrate`
+command with database settings supplied at runtime before deploying the native
+image. Migrations never run during image build or server startup. `/up` bypasses
+database checkout after the application's initial database/migration verification,
+so it reports process liveness rather than database readiness. The generated
+README includes deployment commands, environment settings and shutdown semantics.
+
+Run `bash script/ci/run_app_docker_smoke.sh` to verify the generated image using
+Docker alone. It packages and installs the current framework inside a temporary
+container, generates an app, builds before creating any database, checks secret
+exclusions and runtime linkage, applies a real migration, verifies HTTP and Docker
+health checks as a non-root user without Ruby/Spinel, stops PostgreSQL to test
+liveness, and verifies clean SIGTERM shutdown. Diagnostics are retained in
+`tmp/app-docker-smoke/`. This runs as a separate job in the native smoke workflow.

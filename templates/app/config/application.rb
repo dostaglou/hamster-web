@@ -9,7 +9,7 @@ module __APP_MODULE__
     database = Hamster::Database.new(database_configuration, migrations_path: File.join(root, "db/migrations"))
     begin
       database.verify!
-      Hamster::Application.new(routes: Routes::Mappings, database: database)
+      Application.new(routes: Routes::Mappings, database: database)
     rescue StandardError
       database.shutdown
       raise

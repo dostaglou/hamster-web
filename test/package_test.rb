@@ -31,7 +31,7 @@ class PackageTest < Minitest::Test
       )
       assert status.success?, output
       app = File.join(directory, "smoke_app")
-      %w[bin/server bin/hamster config/application.rb config/commands.rb config/database.rb config/manifest.rb spin.toml spin.lock].each do |file|
+      %w[bin/server bin/hamster config/application.rb config/commands.rb config/database.rb config/manifest.rb spin.toml spin.lock Dockerfile .dockerignore app/application.rb app/routes/up/index/action.rb public/.keep].each do |file|
         assert File.file?(File.join(app, file)), "Missing packaged template/generated file: #{file}"
       end
       assert File.executable?(File.join(app, "bin/hamster"))
@@ -41,7 +41,13 @@ class PackageTest < Minitest::Test
       assert_includes File.read(File.join(app, "spin.lock")), contract.fetch("PG_REVISION")
       assert_includes File.read(File.join(app, "bin/server")), 'require "spinner"'
       assert_includes File.read(File.join(app, "app/routes/home/index/view.html.erb")), "Welcome to smoke_app"
-      refute_match(/__APP_NAME__|__APP_MODULE__|__HAMSTER_VERSION__/, gemfile)
+      dockerfile = File.read(File.join(app, "Dockerfile"))
+      assert_includes dockerfile, contract.fetch("RUBY_IMAGE")
+      assert_includes dockerfile, contract.fetch("SPINEL_REVISION")
+      assert_includes dockerfile, %(gem install bundler --version #{contract.fetch('BUNDLER_VERSION')})
+      assert_includes dockerfile, %(gem install hamster-web --version #{spec.version})
+      assert_includes dockerfile, 'ENTRYPOINT ["/app/bin/smoke_app-server"]'
+      refute_match(/__APP_NAME__|__APP_MODULE__|__HAMSTER_VERSION__/, gemfile + dockerfile)
     end
   end
 end
