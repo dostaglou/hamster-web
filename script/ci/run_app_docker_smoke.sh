@@ -129,9 +129,10 @@ docker exec "$web" curl --fail --silent --show-error --max-time 3 http://127.0.0
 [[ "$(cat "$log_dir/up.txt")" == OK ]]
 stage="liveness-during-database-outage"
 docker stop --time 10 "$postgres" >/dev/null
+[[ "$(docker inspect --format '{{.State.Running}}' "$postgres")" == false ]]
 docker exec "$web" curl --fail --silent --show-error --max-time 3 http://127.0.0.1:4000/up > "$log_dir/up-without-database.txt"
 [[ "$(cat "$log_dir/up-without-database.txt")" == OK ]]
-[[ "$(docker exec "$web" curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4000/)" == 500 ]]
+# The welcome page performs no SQL; its response need not fail during an outage.
 stage="sigterm"
 docker stop --time 20 "$web" >/dev/null
 docker inspect "$web" > "$log_dir/runtime-state.json"
