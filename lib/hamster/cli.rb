@@ -44,6 +44,13 @@ module Hamster
       end
     end
 
+    def self.require_tool!(executable, instruction)
+      paths = executable.include?(File::SEPARATOR) ? [executable] : ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).map { |directory| File.join(directory, executable) }
+      return if paths.any? { |path| File.file?(path) && File.executable?(path) }
+
+      raise "Required executable #{executable.inspect} was not found; #{instruction}"
+    end
+
     def self.dispatch(command)
       app_root = root
       metadata = JSON.parse(File.read(File.join(app_root, "config/hamster.json")))
@@ -63,10 +70,13 @@ module Hamster
           Console.run(ApplicationCommands.build)
         end
       when "setup"
+        require_tool!("bundle", "install Bundler with gem install bundler")
+        require_tool!("spin", "install the supported Spinel toolchain (including spin); see the Hamster README") if File.file?(File.join(app_root, "spin.toml"))
         Dir.chdir(app_root) { raise "Dependency installation failed" unless system("bundle", "install") }
         Dir.chdir(app_root) { raise "Spin dependency vendoring failed" unless system("spin", "vendor") } if File.file?(File.join(app_root, "spin.toml"))
         Build::PostgresCompatibility.apply(app_root) if File.file?(File.join(app_root, "spin.toml"))
       when "db:create", "db:migrate"
+        require_tool!("spin", "install the supported Spinel toolchain and run bin/hamster setup")
         output, status = Open3.capture2e("spin", "list", "--json", chdir: app_root)
         raise "Cannot resolve PostgreSQL dependency: #{output}" unless status.success?
         pg = JSON.parse(output).find { |package| package["name"] == "pg" }
@@ -95,6 +105,9 @@ module Hamster
         raise issues.join("\n") unless issues.empty?
         puts "Manifest check passed"
       when "build"
+        compiler = ENV.fetch("SPINEL", "spinel")
+        require_tool!(compiler, "install the supported Spinel toolchain or set SPINEL to its compiler path; see the Hamster README")
+        require_tool!("spin", "install the supported Spinel toolchain (including spin)") if File.file?(File.join(app_root, "spin.toml"))
         Build::PostgresCompatibility.apply(app_root) if File.file?(File.join(app_root, "spin.toml"))
         Build::Manifest.generate(app_root)
         issues = Build::Manifest.check(app_root)
@@ -109,7 +122,7 @@ module Hamster
               raise "Spin dependency resolution failed: #{diagnostic}" unless status.success?
               flags.concat(Shellwords.split(output))
             end
-            raise "Spinel compilation failed" unless system(ENV.fetch("SPINEL", "spinel"), "bin/server", *flags, "-o", temporary)
+            raise "Spinel compilation failed" unless system(compiler, "bin/server", *flags, "-o", temporary)
           end
           File.rename(temporary, binary)
         ensure

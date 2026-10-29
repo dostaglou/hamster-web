@@ -1,0 +1,60 @@
+name: Clean-install native smoke
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  native-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["candidate", "published"]') || fromJSON('["candidate"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read installation contract
+        id: contract
+        run: |
+          source script/ci/versions.env
+          echo "ruby=$RUBY_VERSION" >> "$GITHUB_OUTPUT"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ steps.contract.outputs.ruby }}
+      - name: Run framework and packaging tests
+        run: ruby -Ilib -e 'Dir["test/*_test.rb"].sort.each { |file| require File.expand_path(file) }'
+      - name: Build candidate gem
+        if: matrix.mode == 'candidate'
+        run: |
+          mkdir -p tmp
+          gem build hamster-web.gemspec --output tmp/hamster-web.gem
+      - name: Run isolated Linux consumer
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          if [[ "$MODE" == candidate ]]; then
+            bash script/ci/run_native_smoke.sh candidate tmp/hamster-web.gem
+          else
+            bash script/ci/run_native_smoke.sh published
+          fi
+      - name: Clean up smoke resources
+        if: always()
+        run: |
+          docker ps -aq --filter label=io.hamster.native-smoke=true | xargs -r docker rm -fv
+          docker network ls -q --filter label=io.hamster.native-smoke=true | xargs -r docker network rm
+          docker image ls -q --filter label=io.hamster.native-smoke=true | sort -u | xargs -r docker image rm -f
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-smoke-${{ matrix.mode }}
+          path: tmp/native-smoke-${{ matrix.mode }}/
+          if-no-files-found: ignore

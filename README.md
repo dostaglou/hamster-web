@@ -9,11 +9,11 @@ actions, compiled views, and SQL migrations. Database creation and migration
 commands, the console, and schema-aware records/queries are available.
 Telemetry extraction and asset delivery remain under development.
 
-Build and install the local framework preview:
+Install the public framework preview from RubyGems:
 
 ```sh
-gem build hamster-web.gemspec
-gem install --local hamster-web-0.1.0.pre.2.gem
+gem install bundler --version 2.5.23
+gem install hamster-web --version 0.1.0.pre.2
 hamster new MyApp
 cd my_app
 bin/hamster setup
@@ -28,7 +28,7 @@ bin/hamster build
 bin/hamster serve
 ```
 
-Run framework tests with `ruby -Ilib -e 'Dir["test/*_test.rb"].sort.each { |file| require_relative file }'`.
+Run framework tests with `ruby -Ilib -e 'Dir["test/*_test.rb"].sort.each { |file| require File.expand_path(file) }'`.
 
 ## Records and queries
 
@@ -59,3 +59,80 @@ configured PostgreSQL database. It reports missing tables/columns, incompatible
 types, and unexpected nullability with a nonzero exit status. It never migrates
 or modifies the schema. Configuration is loaded through config/commands.rb,
 a CRuby-only adapter generated with new applications.
+
+## Installation contract and Linux verification
+
+The clean-install gate targets Ruby 3.3.6, Bundler 2.5.23, Hamster
+0.1.0.pre.2, Spinner 0.1.0.pre.1, PostgreSQL 16.6, and unmodified Spinel/Spin
+revision `10f112c51666e7ffd308e0ab90a69c2184870c06`. The exact CI inputs live
+in `script/ci/versions.env`; Linux compatibility is verified by the native
+smoke workflow. This pin does not include the experimental benchmark runtime.
+
+The server gem is named `spinel-spinner`; Ruby application code uses
+`require "spinner"` and the `Spinner` namespace. Hamster installs it as a
+separate, exact-version dependency. The RubyGems package named `spinner` is
+unrelated. Neither framework gem bundles a compiler or a precompiled server.
+
+Spinel and its `spin` project tool must be installed before app setup. On
+Debian Bookworm, install `build-essential`, `ca-certificates`, `curl`, `git`,
+`pkg-config`, `libffi-dev`, and `libssl-dev`. PostgreSQL must be available;
+`postgresql-client` provides the smoke test's `psql` checks. Build the pinned
+upstream toolchain into a dedicated installation prefix:
+
+```sh
+git clone https://github.com/matz/spinel.git
+cd spinel
+git checkout --detach 10f112c51666e7ffd308e0ab90a69c2184870c06
+make deps
+make -j2
+make install PREFIX="$HOME/.local"
+export PATH="$HOME/.local/bin:$PATH"
+spinel --version
+spin --version
+```
+
+Then run the app generation commands above from an empty directory. Setup
+fetches the PostgreSQL driver revision in the generated `spin.lock` from
+`https://github.com/rubys/spinel-pg`. RubyGems and GitHub network access are
+required. Configure `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`,
+`DATABASE_USERNAME`, and `DATABASE_PASSWORD` for your PostgreSQL server.
+`DATABASE_ADMIN_NAME` defaults to `postgres`; administrative credentials default
+to the application credentials and need permission to create the database.
+The generated README describes the defaults and build/serve commands.
+
+To build a local framework preview instead of installing the public package:
+
+```sh
+gem build hamster-web.gemspec
+gem install --local hamster-web-0.1.0.pre.2.gem
+```
+
+Run the clean Linux gate locally with Docker running (no local PostgreSQL or
+Spinel installation needed):
+
+```sh
+# Public packages, installed directly from RubyGems:
+bash script/ci/run_native_smoke.sh published
+
+# Candidate gem built from this checkout, plus published Spinner:
+mkdir -p tmp
+gem build hamster-web.gemspec --output tmp/hamster-web.gem
+bash script/ci/run_native_smoke.sh candidate tmp/hamster-web.gem
+```
+
+Each invocation builds an image without caches, installs the compiler from its
+pinned upstream source, and tests in a separate consumer image containing no
+Hamster/Spinner checkout. Only the CI harness and optional candidate gem enter
+that environment. Gems, Bundler settings, and the generated app use fresh
+isolated directories. Package resolution must stay within that gem installation.
+The test creates a disposable database, applies a real migration twice, checks
+its effects and tracking, compiles the app, and asserts HTTP 200 and welcome
+content from the native executable. Containers, their processes, networks, and
+the tagged test image are removed on exit. Docker retains image build layers;
+no restored layers are used by the gate.
+
+Logs, lockfiles, resolved package paths, and HTTP output are retained under
+`tmp/native-smoke-<mode>/` (override with `SMOKE_ARTIFACTS_DIR`). GitHub Actions
+uploads those diagnostics even on failure. Pull requests and main test the
+candidate package; weekly and manually triggered runs also test published
+packages. Public pins are advanced deliberately when releases are available.

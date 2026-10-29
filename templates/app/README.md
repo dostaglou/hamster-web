@@ -1,7 +1,13 @@
 # __APP_NAME__
 
 Run `bin/hamster setup` to install gems and vendor the locked Spin PostgreSQL driver.
-Spin and Spinel must already be installed. Configure DATABASE_USERNAME,
+Spin and Spinel must already be installed. The preview installation contract is
+Ruby 3.3.6, Bundler 2.5.23, Hamster __HAMSTER_VERSION__, spinel-spinner
+0.1.0.pre.1, and Spinel/Spin revision
+`10f112c51666e7ffd308e0ab90a69c2184870c06`. See the framework README at
+https://github.com/dostaglou/hamster-web for compiler installation prerequisites.
+Spinner's gem name is `spinel-spinner`; application code uses `require "spinner"`.
+Both gems are available from https://rubygems.org. Configure DATABASE_USERNAME,
 DATABASE_PASSWORD, and optionally DATABASE_HOST and DATABASE_PORT for your local
 PostgreSQL server. DATABASE_NAME defaults to __APP_NAME___development.
 
@@ -14,7 +20,7 @@ then `bin/hamster serve`. Build does not require a database connection.
 An empty migration directory is valid; db:migrate initializes migration tracking.
 The server listens on http://127.0.0.1:4000 by default; configure HOST and PORT
 to override it. During framework development, install the local hamster-web
-gem before running setup.
+gem before running setup. Otherwise the pinned framework is installed from RubyGems.
 
 Run a deployed binary from the application root or set HAMSTER_APP_ROOT.
 Include db/migrations alongside the binary. PostgreSQL TLS is not supported
