@@ -90,6 +90,11 @@ module Hamster
       winner
     end
 
+    def turbo_frame
+      value = env.fetch("HTTP_TURBO_FRAME", "")
+      value.empty? ? nil : Turbo.identifier(value)
+    end
+
     def wants_json?
       format == :json
     end
