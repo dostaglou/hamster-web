@@ -150,3 +150,27 @@ Accept quality/specificity and defaults to HTML for absent Accept or ties;
 respond with 406 explicitly for `:none`. Negotiated responses include `Vary:
 Accept, Turbo-Frame`, including the HTML branch. Existing HTML/Turbo rendering
 continues through `respond(view: ...)` and `type: :turbo_stream`.
+
+### Request tests and disposable databases
+
+`bin/hamster test [test/path] [--json]` runs CRuby request tests. New endpoints
+include tests that assert their actual generated response. `check --full` runs
+the same tests plus compiled HTTP checks. Extend `test/native_http.rb` for your
+application's native assertions; `test/native_server.rb` is an explicit test
+entrypoint and defaults to no database.
+
+`Hamster::Testing::Client` accepts headers, JSON, form, raw and multipart bodies;
+responses expose status, headers, body, parsed `json`, and `content_type`. Bodies
+and request inputs close even on HEAD or iteration failures. Tests inherit
+`Hamster::Testing::Test` for status, content-type, HTML and JSON assertions.
+
+For real database tests, require `hamster/test_database`, make the vendored pg
+driver available, and call `Hamster::Testing::TestDatabase.with_database` with
+your migration path. Explicitly set `HAMSTER_ENV=test`, `HAMSTER_TEST_DATABASE=1`
+and `TEST_DATABASE_USERNAME` (plus optional TEST_DATABASE_HOST/PORT/PASSWORD).
+Unset DATABASE_NAME and DATABASE_URL. Each invocation creates a unique database,
+migrates it, and drops only that owned database in ensure. Non-loopback hosts
+require `HAMSTER_TEST_ALLOW_REMOTE=1`; use a dedicated test PostgreSQL service.
+`TestDatabase.rollback(database) { |connection| ... }` isolates fixture changes
+within a transaction that always rolls back. Never share that connection with
+another thread. No production endpoint is inferred from application settings.

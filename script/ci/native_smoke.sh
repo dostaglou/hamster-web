@@ -98,6 +98,7 @@ class ReversibleSmoke < Hamster::Migration
 end
 RUBY
   bin/hamster db:migrate
+  env -u DATABASE_NAME -u DATABASE_URL HAMSTER_TEST_DATABASE=1 HAMSTER_TEST_ALLOW_REMOTE=1 TEST_DATABASE_HOST=postgres TEST_DATABASE_PORT=5432 TEST_DATABASE_USERNAME=smoke TEST_DATABASE_PASSWORD=smoke bundle exec ruby -I vendor/packages/pg-0.2.0 /smoke/test_database_probe.rb
   bin/hamster db:migrate:history --json > /artifacts/migration-history.json
   bin/hamster db:rollback STEP=1
   bin/hamster db:migrate
@@ -110,7 +111,8 @@ RUBY
   cp /smoke/callback_concern.rb app/concerns/audit.rb
   bin/hamster generate endpoint callbacks/check --concern SmokeApp::Audit
   cp /smoke/file_actions.rb app/routes/file_actions.rb
-  ruby -e 'p="app/routes/mappings.rb"; s=File.read(p); s=s.sub("      get \"/up\",", "      post \"/upload\", to: FileFixtures::Upload, as: :upload\n      get \"/download\", to: FileFixtures::Download, as: :download\n      get \"/up\","); File.write(p,s)'
+  cp /smoke/json_action.rb app/routes/json_action.rb
+  ruby -e 'p="app/routes/mappings.rb"; s=File.read(p); s=s.sub("      get \"/up\",", "      post \"/json\", to: JsonEcho, as: :json\n      post \"/upload\", to: FileFixtures::Upload, as: :upload\n      get \"/download\", to: FileFixtures::Download, as: :download\n      get \"/up\","); File.write(p,s)'
   mkdir -p /work/files /work/uploads
   python3 -c 'from pathlib import Path; Path("/work/files/download.bin").write_bytes(bytes(range(256))*8192)'
   export MAX_BODY_BYTES=4194304 HAMSTER_FILE_ROOT=/work/files UPLOAD_DIRECTORY=/work/uploads
@@ -139,6 +141,7 @@ grep -F 'Welcome to smoke_app' /artifacts/response.html
 grep -F 'Your Hamster application is running.' /artifacts/response.html
 if [[ "$mode" == candidate ]]; then
   python3 /smoke/check_callback_http.py http://127.0.0.1:4000/callbacks/check callbacks/check
+  python3 /smoke/check_json_http.py http://127.0.0.1:4000
   stage=file-http
   # Repeat allocations and disconnects: a single round can miss a cross-worker
   # collection of the pinned runtime's saved multipart regex subjects.

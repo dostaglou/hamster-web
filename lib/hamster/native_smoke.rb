@@ -14,7 +14,7 @@ module Hamster
       spinner = Gem::Specification.find_by_name("spinel-spinner").full_gem_path
       Dir.mktmpdir("hamster-native") do |temporary|
         binary = File.join(temporary, "server")
-        flags = ["--require-gate", "-I", File.expand_path("..", __dir__), "-I", File.join(spinner, "lib"), "-I", root]
+        flags = ["--require-gate", "-I", File.expand_path("..", __dir__), "-I", ENV.fetch("SPINNER_LIB", File.join(spinner, "lib")), "-I", root]
         output, status = Open3.capture2e(ENV.fetch("SPINEL", "spinel"), entry, *flags, "-o", binary, chdir: root)
         raise "Native compilation failed:\n#{output}" unless status.success?
         log = File.join(temporary, "server.log")

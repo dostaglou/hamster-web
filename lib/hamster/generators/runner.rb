@@ -73,7 +73,12 @@ module Hamster
           source << "  def call\n    respond(#{response})\n  end\nend\n" << "end\n" * modules.size
           plan.add("app/routes/#{location}/action.rb", source)
           view(plan, location) if options[:view]
-          route(plan, namespace, location, action, options) if kind == "endpoint"
+          if kind == "endpoint"
+            route(plan, namespace, location, action, options)
+            test_path = options[:path].gsub(/:[a-zA-Z0-9_]+/, "1")
+            expected = options[:view] ? location.split('/').map { |part| camel(part) }.join(' ') : location
+            plan.add("test/requests/#{location}_test.rb", "require_relative #{('../' * (location.count('/') + 1) + 'test_helper').inspect}\nclass #{camel(location).delete(':')}RequestTest < AppRequestTest\n  def test_generated_endpoint\n    response = client.request(#{options[:method].inspect}, #{test_path.inspect})\n    assert_status :ok, response\n#{options[:method] == "HEAD" ? '    assert_content_type "text/html", response' : "    assert_html #{expected.inspect}, response"}\n  end\nend\n")
+          end
         when "view"
           view(plan, location)
         when "route"

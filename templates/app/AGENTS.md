@@ -9,7 +9,7 @@ your agent does not discover it automatically.
 - Keep one action per endpoint directory, routes in `app/routes/mappings.rb`, and shared callback modules in `app/concerns/`.
 - App Ruby files load through `config/manifest.rb`; do not add local requires or runtime eval. Migration Ruby belongs exclusively in CRuby tooling.
 - Run `bin/hamster manifest` after changing Ruby, views, or callback declarations; run `bin/hamster manifest:check` and `bin/hamster build` to verify native compatibility.
-- Run `bin/hamster check --quick` during edits and `bin/hamster check --full` before completion. Use `--json` for stable diagnostics. Full checks include project tests and native HTTP smoke checks.
+- Run `bin/hamster check --quick` during edits and `bin/hamster check --full` before completion. Use `--json` for stable diagnostics. Use `bin/hamster test [test/path] [--json]` for request tests. Full checks include project tests and native HTTP smoke checks.
 - Use explicit migration `up`/`down`; inspect `db:migrate:status` and `db:migrate:history --json` before changing the database. Never edit applied migrations to change a schema.
 - Obtain explicit authorization for production database mutations. Do not assume local environment variables identify a disposable database.
 - Keep authentication and authorization explicit. Before hooks halt only with an HTTP response; after hooks are not unconditional cleanup hooks.
