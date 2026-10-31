@@ -8,6 +8,7 @@ module Hamster
     def initialize(routes:, database: nil)
       @router = Router.new(routes)
       @database = database
+      Jobs.database = database if database
       @upload_options = {}
     end
 

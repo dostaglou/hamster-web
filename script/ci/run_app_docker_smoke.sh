@@ -14,9 +14,11 @@ run_id="hamster-app-$(date +%s)-$$"
 network=$run_id
 postgres=$run_id-postgres
 web=$run_id-web
+worker=$run_id-worker
 generator=$run_id-generator
 image=$run_id-runtime
 migration_image=$run_id-migrations
+worker_image=$run_id-worker-image
 spinner_candidate=${SPINNER_CANDIDATE_GEM:-}
 if [[ -n "$spinner_candidate" ]]; then
   [[ -f "$spinner_candidate" ]] || { echo "SPINNER_CANDIDATE_GEM must name a built gem" >&2; exit 2; }
@@ -27,10 +29,11 @@ cleanup() {
   local status=$?
   trap - EXIT
   docker logs "$web" > "$log_dir/server.log" 2>&1 || true
+  docker logs "$worker" > "$log_dir/worker.log" 2>&1 || true
   docker logs "$postgres" > "$log_dir/postgres.log" 2>&1 || true
-  docker rm -fv "$generator" "$web" "$postgres" >/dev/null 2>&1 || true
+  docker rm -fv "$generator" "$web" "$worker" "$postgres" >/dev/null 2>&1 || true
   docker network rm "$network" >/dev/null 2>&1 || true
-  docker image rm "$image" "$migration_image" >/dev/null 2>&1 || true
+  docker image rm "$image" "$migration_image" "$worker_image" >/dev/null 2>&1 || true
   rm -rf "$work_dir"
   if ((status != 0)); then echo "Generated-app Docker smoke failed during: $stage (exit $status)" >&2; fi
   echo "Generated-app Docker artifacts: $log_dir"
@@ -58,31 +61,35 @@ docker run --rm --label io.hamster.app-smoke=true --name "$generator" \
     ruby /framework/script/ci/check_gems.rb "$HAMSTER_VERSION" "$SPINNER_VERSION" "${candidates[@]}"
     cd /output
     hamster new DeployApp
+    cd deploy_app
+    hamster generate job_queue queue --timestamp 20261101000000
+    mkdir -p app/jobs
+    cp /framework/script/ci/app_job.rb app/jobs/smoke_job.rb
+    hamster manifest
   ' 2>&1 | tee "$log_dir/generation.log"
 app_dir=$work_dir/deploy_app
-if [[ -n "$spinner_candidate" ]]; then
-  # Only this disposable Dockerfile consumes local artifacts. Never change the
-  # generated template's released-package installation contract.
-  mkdir -p "$app_dir/.candidates"
-  cp "$work_dir/hamster-web.gem" "$work_dir/spinel-spinner.gem" "$app_dir/.candidates/"
-  cp "$ci_dir/check_gems.rb" "$app_dir/.candidates/"
-  cat >> "$app_dir/.dockerignore" <<'IGNORE'
+# Always install the candidate framework inside the disposable build. A
+# published package with the same preview version must not mask these changes.
+mkdir -p "$app_dir/.candidates"
+cp "$work_dir/hamster-web.gem" "$app_dir/.candidates/"
+if [[ -n "$spinner_candidate" ]]; then cp "$work_dir/spinel-spinner.gem" "$app_dir/.candidates/"; fi
+cp "$ci_dir/check_gems.rb" "$app_dir/.candidates/"
+cat >> "$app_dir/.dockerignore" <<'IGNORE'
 !.candidates/*.gem
 IGNORE
-  docker run --rm --user "$(id -u):$(id -g)" \
-    --mount "type=bind,source=$app_dir,target=/app" "$RUBY_IMAGE" ruby -e '
-      path = "/app/Dockerfile"
-      text = File.read(path)
-      old = /^RUN gem install bundler.*?gem install hamster-web[^\n]+/m
-      abort "Missing toolchain package installation" unless text.match?(old)
-      replacement = "COPY .candidates/ /candidates/\n" +
-        "RUN gem install bundler --version 2.5.23 --no-document && " +
-        "gem install /candidates/spinel-spinner.gem --local --no-document && " +
-        "gem install /candidates/hamster-web.gem --no-document && " +
-        "ruby /candidates/check_gems.rb __HAMSTER__ __SPINNER__ /candidates/hamster-web.gem /candidates/spinel-spinner.gem"
-      File.write(path, text.sub(old, replacement.sub("__HAMSTER__", ARGV[0]).sub("__SPINNER__", ARGV[1])))
-    ' "$HAMSTER_VERSION" "$SPINNER_VERSION"
-fi
+docker run --rm --user "$(id -u):$(id -g)" \
+  --mount "type=bind,source=$app_dir,target=/app" "$RUBY_IMAGE" ruby -e '
+    path = "/app/Dockerfile"
+    text = File.read(path)
+    old = /^RUN gem install bundler.*?gem install hamster-web[^\n]+/m
+    abort "Missing toolchain package installation" unless text.match?(old)
+    replacement = "COPY .candidates/ /candidates/\n" +
+      "RUN gem install bundler --version 2.5.23 --no-document && " +
+      "if [ -f /candidates/spinel-spinner.gem ]; then gem install /candidates/spinel-spinner.gem --local --no-document; fi && " +
+      "gem install /candidates/hamster-web.gem --no-document && " +
+      "ruby /candidates/check_gems.rb __HAMSTER__ __SPINNER__ /candidates/hamster-web.gem"
+    File.write(path, text.sub(old, replacement.sub("__HAMSTER__", ARGV[0]).sub("__SPINNER__", ARGV[1])))
+  ' "$HAMSTER_VERSION" "$SPINNER_VERSION"
 # Exercise the payload copied into runtime, and exclusions from builder layers.
 cat > "$app_dir/db/migrations/001_container.sql" <<'SQL'
 CREATE TABLE container_probes (id INTEGER PRIMARY KEY, message TEXT NOT NULL);
@@ -102,6 +109,8 @@ docker build --no-cache --progress plain --label io.hamster.app-smoke=true \
   -t "$image" "$app_dir" 2>&1 | tee "$log_dir/image-build.log"
 docker build --progress plain --label io.hamster.app-smoke=true \
   --target migrations -t "$migration_image" "$app_dir" 2>&1 | tee "$log_dir/migration-image-build.log"
+docker build --progress plain --label io.hamster.app-smoke=true \
+  --target worker -t "$worker_image" "$app_dir" 2>&1 | tee "$log_dir/worker-image-build.log"
 stage="image-contract"
 docker run --rm --entrypoint sh "$migration_image" -euc '
   test ! -e /app/.env.production
@@ -145,6 +154,32 @@ for command in db:create db:migrate db:migrate; do
 done
 [[ "$(docker exec "$postgres" psql -U smoke -d deploy_app_production -Atc 'SELECT message FROM container_probes WHERE id = 1')" == 'container migration' ]]
 [[ "$(docker exec "$postgres" psql -U smoke -d deploy_app_production -Atc "SELECT count(*) FROM schema_migrations WHERE version = '001'")" == 1 ]]
+stage="native-worker"
+docker run --rm --label io.hamster.app-smoke=true --network "$network" "${db_env[@]}" \
+  --entrypoint ruby "$migration_image" -r ./config/application -r hamster/jobs/postgres_queue -e '
+    db = Hamster::ApplicationCommands.database if defined?(Hamster::ApplicationCommands)
+    db ||= Hamster::Database.new(DeployApp.database_configuration, migrations_path: "/app/db/migrations")
+    begin
+      Hamster::Jobs.configure(adapter: Hamster::Jobs::PostgresQueue.new(database: db))
+      puts DeployApp::SmokeJob.perform_later({})
+    ensure
+      db.shutdown
+    end
+  ' | tee "$log_dir/worker-enqueue.log"
+docker run --rm --label io.hamster.app-smoke=true --network "$network" --read-only \
+  --tmpfs /tmp:rw,nosuid,nodev,mode=1777 "${db_env[@]}" "$worker_image" --once
+[[ "$(docker exec "$postgres" psql -U smoke -d deploy_app_production -Atc "SELECT message FROM container_probes WHERE id=2")" == 'native worker job' ]]
+docker run --rm --entrypoint sh "$worker_image" -euc '
+  test "$(id -u)" = 10001
+  ! command -v ruby
+  ! command -v spinel
+  test ! -d /app/config && test ! -d /app/app
+'
+docker run -d --label io.hamster.app-smoke=true --name "$worker" --network "$network" \
+  --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777 "${db_env[@]}" "$worker_image" >/dev/null
+sleep 1
+docker stop --time 20 "$worker" >/dev/null
+[[ "$(docker inspect --format '{{.State.ExitCode}}' "$worker")" == 0 ]]
 stage="runtime-health"
 docker run -d --label io.hamster.app-smoke=true --name "$web" --network "$network" --network-alias web \
   --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777 "${db_env[@]}" "$image" >/dev/null
@@ -172,4 +207,4 @@ stage="sigterm"
 docker stop --time 20 "$web" >/dev/null
 docker inspect "$web" > "$log_dir/runtime-state.json"
 [[ "$(docker inspect --format '{{.State.ExitCode}}' "$web")" == 0 ]]
-echo "PASS: generated Dockerfile builds without a DB, runs non-root without Ruby/Spinel, serves HTTP, keeps /up alive without PostgreSQL, and exits cleanly on SIGTERM"
+echo "PASS: generated Dockerfile builds without a DB, runs non-root without Ruby/Spinel, serves HTTP, keeps /up alive without PostgreSQL, runs an independent native worker, and exits cleanly on SIGTERM"

@@ -7,7 +7,13 @@ its HTTP server dependency.
 The starter generates and compiles with PostgreSQL support, explicit routes,
 actions, compiled views, and SQL migrations. Database creation and migration
 commands, the console, and schema-aware records/queries are available.
-Telemetry extraction and asset delivery remain under development.
+JSON actions, forms, compiled components, fingerprinted assets, attachments and
+native jobs/workers are implemented in this source checkout. Telemetry extraction
+remains under development.
+
+The new APIs below describe unreleased source changes. Spinner 0.1.0.pre.4 is
+currently a local preview dependency; use a built candidate package with
+`SPINNER_CANDIDATE_GEM` for Docker smoke checks until it is published.
 
 Install the public framework preview from RubyGems:
 
@@ -322,9 +328,9 @@ Existing apps can run `bin/hamster agents:install --dry-run`, then
 `.agents/hamster-guidance.json`. Missing files are installed, unchanged managed
 files are upgraded, and customized files are preserved with a manual-merge
 notice and nonzero exit status. Review old guidance against the current templates
-when a conflict is reported. The full component-generator and unified check/test
-CLI roadmaps remain separate; use documented project tests and existing native
-build checks.
+when a conflict is reported. Component generators and the unified check/test CLI
+are described below; consult the installed --help/--schema contract for supported
+commands.
 
 ### Composable generators
 
@@ -574,3 +580,55 @@ For deterministic tests configure `Hamster::Jobs::TestAdapter`, inspect its
 serialized `enqueued` payloads, then call `perform_enqueued` or `clear`. Shut down
 an async adapter before replacing it. The candidate native CI also compiles and
 runs CPU/concurrency/failure probes for jobs and binary disk storage.
+
+### Durable PostgreSQL jobs and native workers
+
+`generate job_queue queue` creates an explicit queue migration (format version 1)
+and installs a missing worker entrypoint in older apps. Migrate it before serving
+or running workers. Configure `Hamster::Jobs::PostgresQueue.new(database: db)` as
+the web adapter; `perform_later({...}, at: Time.now + 60, queue: "mail", priority: 5)`
+supports scheduling and named queues. Higher priorities run first. Inline/async
+adapters reject scheduling, named queue and connection options.
+
+For transaction-consistent enqueueing, pass `connection: context.connection` to
+`perform_later`, or to `queue.enqueue(serialized_payload, connection: connection)`
+inside the same business transaction. The connection's database is verified;
+rollback removes both changes and the job. Otherwise enqueue uses a separate
+checkout/commit; size the web pool accordingly. Reusing the same serialized job
+ID/payload makes uncertain enqueue retries idempotent; conflicting payloads with
+an existing ID are rejected. Do not regenerate IDs when retrying an uncertain
+network result.
+
+Run `bin/hamster build:worker`, then `bin/hamster jobs:work` (or `--once`). The
+separate native executable statically links the application's registered jobs.
+It uses an independent pool sized by JOB_DATABASE_POOL_SIZE (default 2*threads+2);
+job bodies acquire their own scoped connection through `Hamster::Jobs.database`.
+WORKER_THREADS defaults to 2 (maximum 64), JOB_QUEUES to default,
+JOB_LEASE_SECONDS to 30, and JOB_DRAIN_SECONDS to 10.
+
+Claims use one short `FOR UPDATE SKIP LOCKED`/`UPDATE RETURNING` statement. No
+claim transaction remains open while user code executes. Heartbeats renew leases;
+expired jobs recover after worker death or connection failure. Lease tokens fence
+old acknowledgements, but cannot undo external user-code effects. Delivery is
+**at least once**: jobs must be idempotent. There is no exactly-once guarantee.
+Retries use capped exponential backoff and become dead after max_attempts
+(default 5). Error metadata retains class only, not payloads/messages. Use
+`queue.retry_dead(id)` for explicit retries and `queue.cancel(id)` for cancellation.
+Running cancellation is cooperative (`Hamster::Jobs.cancelled?`); arbitrary user
+code is not safely interrupted. TERM/INT stop admission and drain to a deadline;
+unfinished work remains leased and is recovered after process replacement.
+
+`jobs:status --json` reports versioned counts, due/scheduled backlog and oldest
+pending timestamp without disclosing arguments. Queue schema versions are checked
+before processing; migrations never run implicitly. For rolling upgrades deploy
+workers accepting old and new job payload versions before producers emit the new
+version, drain old workers, then retire old handlers in a later deployment.
+
+`docker build --target worker -t my_app-jobs .` produces a non-root native worker
+image without Ruby/compiler or an HTTP listener. Keep migrations operational and
+separate. The default Docker target remains the web image. The optional
+`config/deploy.worker.yml.example` uses a separate Kamal 2 service/worker role,
+`builder.target: worker`, and no proxy. Configure its registry, architecture,
+private PostgreSQL and secrets; set container stop timeout longer than drain.
+See [Kamal roles](https://kamal-deploy.org/docs/configuration/roles/) and
+[build targets](https://kamal-deploy.org/docs/configuration/builders/).

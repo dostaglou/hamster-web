@@ -15,3 +15,7 @@ your agent does not discover it automatically.
 - Keep authentication and authorization explicit. Before hooks halt only with an HTTP response; after hooks are not unconditional cleanup hooks.
 - Uploaded files are request-owned; use `copy_to` for durable storage. File downloads require an authorized action and explicit trusted root.
 - Update guidance with `bin/hamster agents:install --dry-run` first. Customized guidance must be merged manually; it is never silently overwritten.
+
+- Inspect static dependencies with `bin/hamster inspect action resource/action --json` and use `inspect --check` for declaration diagnostics.
+- Use explicit JSON fields, form declarations and authorization callbacks for private attachments. Storage keys and job payloads must not contain request-owned IO or connection objects.
+- Jobs declare a literal name/version and compile through the generated registry. Use `build:worker`/`jobs:work` for durable workers; apply queue migrations explicitly and keep jobs idempotent.

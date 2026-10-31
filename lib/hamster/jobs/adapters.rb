@@ -2,7 +2,8 @@
 module Hamster
   module Jobs
     class Inline
-      def enqueue(bytes)
+      def enqueue(bytes, at: nil, queue: nil, priority: nil, connection: nil)
+        raise ArgumentError, "Scheduling and queue options require a durable adapter" if at || queue || priority || connection
         value = Jobs.validate(bytes)
         Jobs.execute(bytes)
         value["id"]
@@ -14,7 +15,8 @@ module Hamster
       def initialize(capacity: 1000)
         @enqueued, @capacity = [], capacity
       end
-      def enqueue(bytes)
+      def enqueue(bytes, at: nil, queue: nil, priority: nil, connection: nil)
+        raise ArgumentError, "Scheduling and queue options require a durable adapter" if at || queue || priority || connection
         value = Jobs.validate(bytes)
         raise Overloaded, "Test job queue is full" if enqueued.length >= @capacity
         enqueued << bytes.dup.freeze
@@ -41,7 +43,8 @@ module Hamster
         end
       end
       def now; Process.clock_gettime(Process::CLOCK_MONOTONIC); end
-      def enqueue(bytes)
+      def enqueue(bytes, at: nil, queue: nil, priority: nil, connection: nil)
+        raise ArgumentError, "Scheduling and queue options require a durable adapter" if at || queue || priority || connection
         value = Jobs.validate(bytes)
         @lock.synchronize do
           raise Stopped, "Async jobs are stopping" if @stopping

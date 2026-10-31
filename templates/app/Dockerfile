@@ -34,6 +34,30 @@ ENV HAMSTER_APP_ROOT=/app HAMSTER_ENV=production
 ENTRYPOINT ["bin/hamster"]
 CMD ["db:migrate"]
 
+# Optional separately deployed native worker image; no HTTP listener or probe.
+FROM builder AS worker-builder
+RUN bin/hamster build:worker \
+    && mkdir -p /runtime-worker/app/bin /runtime-worker/app/db/migrations \
+    && cp bin/__APP_NAME__-worker /runtime-worker/app/bin/ \
+    && cp -a db/migrations/. /runtime-worker/app/db/migrations/ \
+    && ldd bin/__APP_NAME__-worker > /runtime-worker/ldd.txt \
+    && cat /runtime-worker/ldd.txt && ! grep -F 'not found' /runtime-worker/ldd.txt
+
+FROM ${RUNTIME_IMAGE} AS worker
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libcrypt1 libffi8 libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=worker-builder /runtime-worker/app/ /app/
+RUN ldd /app/bin/__APP_NAME__-worker > /tmp/ldd.txt \
+    && cat /tmp/ldd.txt && ! grep -F 'not found' /tmp/ldd.txt && rm /tmp/ldd.txt
+ENV HAMSTER_APP_ROOT=/app HAMSTER_ENV=production
+USER 10001:10001
+STOPSIGNAL SIGTERM
+HEALTHCHECK NONE
+ENTRYPOINT ["/app/bin/__APP_NAME__-worker"]
+CMD []
+
 FROM ${RUNTIME_IMAGE} AS runtime
 # Runtime libraries and a small HTTP health probe; no Ruby, gems or compiler.
 RUN apt-get update && apt-get install -y --no-install-recommends \

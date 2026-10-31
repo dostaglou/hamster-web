@@ -25,12 +25,12 @@ class MigratorTest < Minitest::Test
   end
 
   def test_postgres_lifecycle_and_concurrency
-    skip "set HAMSTER_MIGRATION_TEST_PORT for disposable PostgreSQL" unless ENV["HAMSTER_MIGRATION_TEST_PORT"]
+    skip "set HAMSTER_TEST_DATABASE=1 with explicit TEST_DATABASE settings" unless ENV["HAMSTER_TEST_DATABASE"] == "1"
     $LOAD_PATH.unshift(File.expand_path("../../release_check/vendor/packages/pg-0.2.0", __dir__))
-    require_relative "../lib/hamster/database/postgres"
-    config = Hamster::Database::Configuration.from_env({"DATABASE_PORT" => ENV.fetch("HAMSTER_MIGRATION_TEST_PORT"), "DATABASE_USERNAME" => "postgres", "DATABASE_PASSWORD" => "milestone", "DATABASE_NAME" => "postgres"})
+    require_relative "../lib/hamster/test_database"
     Dir.mktmpdir do |root|
-      db = Hamster::Database.new(config, migrations_path: root)
+      Hamster::Testing::TestDatabase.with_database(migrations_path: root) do |db|
+        config = db.configuration
       db.with_connection do |c|
         c.execute_script("DROP TABLE IF EXISTS hamster_migration_events, schema_migrations, migration_probe; CREATE TABLE schema_migrations(version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL); INSERT INTO schema_migrations VALUES ('001', NOW())")
       end
@@ -79,8 +79,7 @@ class MigratorTest < Minitest::Test
       assert_equal "missing", db.migration_status.last["status"]
       File.write("#{root}/001_duplicate.sql", "SELECT 1")
       assert_raises(Hamster::Database::ConfigurationError) { db.migration_status }
-    ensure
-      db.shutdown
+      end
     end
   end
 end

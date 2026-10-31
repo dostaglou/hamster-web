@@ -43,10 +43,10 @@ module Hamster
         Generator.create(args.first)
         0
       when nil, "help", "--help", "-h"
-        puts "Usage: hamster new AppName | generate --help | check [--quick|--full] [--json] | test [path] [--json] | hooks:install [--pre-push] | agents:install [--dry-run] | inspect [--json] | dev | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:rollback [STEP=n] | db:migrate:status | db:migrate:history --json | db:structure:dump | db:validate"
+        puts "Usage: hamster new AppName | generate --help | check [--quick|--full] [--json] | test [path] [--json] | hooks:install [--pre-push] | agents:install [--dry-run] | inspect [--json] | dev | setup | manifest | manifest:check | build | build:worker | jobs:work [--once] | jobs:status [--json] | serve | routes | console | db:create | db:migrate | db:rollback [STEP=n] | db:migrate:status | db:migrate:history --json | db:structure:dump | db:validate"
         0
       else
-        if %w[db:rollback db:migrate:history db:validate].include?(command)
+        if %w[db:rollback db:migrate:history db:validate jobs:status jobs:work].include?(command)
           return dispatch(command, args)
         end
         raise ArgumentError, "Unexpected arguments: #{args.join(' ')}" unless args.empty?
@@ -77,8 +77,26 @@ module Hamster
     def self.dispatch(command, args = [])
       app_root = root
       metadata = JSON.parse(File.read(File.join(app_root, "config/hamster.json")))
-      binary = ENV.fetch("HAMSTER_SERVER_BINARY", File.join(app_root, "bin", "#{metadata.fetch('name')}-server"))
+      worker_command = %w[build:worker jobs:work].include?(command)
+      binary = ENV.fetch(worker_command ? "HAMSTER_WORKER_BINARY" : "HAMSTER_SERVER_BINARY", File.join(app_root, "bin", "#{metadata.fetch('name')}-#{worker_command ? 'worker' : 'server'}"))
       case command
+      when "jobs:status"
+        raise ArgumentError, "Usage: jobs:status [--json]" unless args.empty? || args == ["--json"]
+        require File.join(app_root, "config/commands.rb")
+        require_relative "jobs/postgres_queue"
+        database = ApplicationCommands.database
+        begin
+          queue = Jobs::PostgresQueue.new(database: database)
+          queue.verify!
+          report = queue.status
+          args == ["--json"] ? puts(JSON.generate(report)) : report["counts"].each { |state, count| puts "#{state}: #{count}" }
+        ensure
+          database.shutdown
+        end
+      when "jobs:work"
+        raise ArgumentError, "Usage: jobs:work [--once]" unless args.empty? || args == ["--once"]
+        raise "Worker binary missing; run bin/hamster build:worker" unless File.executable?(binary)
+        Dir.chdir(app_root) { exec(binary, *args) }
       when "console", "c", "db:validate"
         adapter = File.join(app_root, "config/commands.rb")
         raise "Missing config/commands.rb; add the command adapter from the current app template" unless File.file?(adapter)
@@ -161,7 +179,7 @@ module Hamster
         issues = Build::Manifest.check(app_root)
         raise issues.join("\n") unless issues.empty?
         puts "Manifest check passed"
-      when "build"
+      when "build", "build:worker"
         compiler = ENV.fetch("SPINEL", "spinel")
         require_tool!(compiler, "install the supported Spinel toolchain or set SPINEL to its compiler path; see the Hamster README")
         require_tool!("spin", "install the supported Spinel toolchain (including spin)") if File.file?(File.join(app_root, "spin.toml"))
@@ -179,7 +197,7 @@ module Hamster
               raise "Spin dependency resolution failed: #{diagnostic}" unless status.success?
               flags.concat(Shellwords.split(output))
             end
-            raise "Spinel compilation failed" unless system(compiler, "bin/server", *flags, "-o", temporary)
+            raise "Spinel compilation failed" unless system(compiler, worker_command ? "bin/worker" : "bin/server", *flags, "-o", temporary)
           end
           File.rename(temporary, binary)
         ensure

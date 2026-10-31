@@ -103,6 +103,8 @@ RUBY
   bin/hamster db:migrate:history --json > /artifacts/migration-history.json
   bin/hamster db:rollback STEP=1
   bin/hamster db:migrate
+  bundle exec ruby /smoke/build_queue_worker.rb /work/native-job-worker vendor/packages/pg-0.2.0
+  env -u DATABASE_NAME -u DATABASE_URL HAMSTER_TEST_DATABASE=1 HAMSTER_TEST_ALLOW_REMOTE=1 TEST_DATABASE_HOST=postgres TEST_DATABASE_PORT=5432 TEST_DATABASE_USERNAME=smoke TEST_DATABASE_PASSWORD=smoke HAMSTER_NATIVE_WORKER=/work/native-job-worker bundle exec ruby -I vendor/packages/pg-0.2.0 /smoke/durable_queue_probe.rb
   bundle exec ruby /smoke/run_native_fixture.rb jobs
   bundle exec ruby /smoke/run_native_fixture.rb storage
   bin/hamster generate --help

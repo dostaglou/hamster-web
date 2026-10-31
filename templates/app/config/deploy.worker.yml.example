@@ -1,0 +1,32 @@
+# Optional Kamal 2 service, deployed separately from the HTTP service.
+# Fill in registry/host/secrets and apply migrations explicitly before deployment.
+service: __APP_NAME__-jobs
+image: your-registry/__APP_NAME__-jobs
+primary_role: workers
+servers:
+  workers:
+    hosts:
+      - jobs.example.com
+    proxy: false
+    stop_timeout: 20
+builder:
+  arch: amd64
+  target: worker
+registry:
+  server: ghcr.io
+  username: YOUR_REGISTRY_USER
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+env:
+  clear:
+    HAMSTER_ENV: production
+    DATABASE_HOST: postgres.internal
+    DATABASE_NAME: __APP_NAME___production
+    WORKER_THREADS: 2
+    JOB_DATABASE_POOL_SIZE: 6
+    JOB_QUEUES: default
+    JOB_LEASE_SECONDS: 30
+    JOB_DRAIN_SECONDS: 10
+  secret:
+    - DATABASE_USERNAME
+    - DATABASE_PASSWORD

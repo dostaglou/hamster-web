@@ -9,9 +9,20 @@ module Hamster
     class UnknownJob < Error; end
     class Overloaded < Error; end
     class Stopped < Error; end
+    class Cancellation
+      def initialize; @lock = Mutex.new; @requested = false; end
+      def request!; @lock.synchronize { @requested = true }; end
+      def requested?; @lock.synchronize { @requested }; end
+    end
     MAX_BYTES = 65536
     @classes = {}
     class << self
+      def database; @database || raise(Error, "Configure a job database pool explicitly"); end
+      def database=(database); @database = database; end
+      def cancelled?
+        token = Thread.current[:hamster_job_cancellation]
+        token ? token.requested? : false
+      end
       def register(klass)
         name = klass.job_name
         previous = @classes[name]
@@ -85,7 +96,7 @@ module Hamster
       raise ArgumentError, "invalid job name" unless name.is_a?(String) && name.match?(/\A[a-z][a-z0-9_.-]*\z/)
       versions = (accepts + [version]).uniq
       raise ArgumentError, "job versions must be positive integers" unless versions.all? { |v| v.is_a?(Integer) && v > 0 }
-      @job_name, @job_version, @accepted_versions = name, version, versions
+      @job_name, @job_version, @accepted_versions = name.dup.freeze, version, versions.freeze
       Jobs.register(self) if RUBY_ENGINE == "ruby"
     end
     def self.job_name; @job_name || raise(ArgumentError, "Declare a literal job name"); end
@@ -94,8 +105,8 @@ module Hamster
     def self.perform_now(arguments = {})
       Jobs.execute(Jobs.envelope(job_name, job_version, arguments))
     end
-    def self.perform_later(arguments = {}, metadata: {})
-      Jobs.adapter.enqueue(Jobs.envelope(job_name, job_version, arguments, metadata))
+    def self.perform_later(arguments = {}, metadata: {}, at: nil, queue: nil, priority: nil, connection: nil)
+      Jobs.adapter.enqueue(Jobs.envelope(job_name, job_version, arguments, metadata), at: at, queue: queue, priority: priority, connection: connection)
     end
     def perform(arguments, version:)
       raise NotImplementedError, "Implement perform(arguments, version:)"

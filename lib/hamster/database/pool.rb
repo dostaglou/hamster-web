@@ -35,16 +35,19 @@ module Hamster
           end
         end
 
-        connection.close unless reusable
-        @lock.synchronize do
+        retain = @lock.synchronize do
           @borrowed -= 1
           if reusable && !@closed
             @available << connection
+            @ready.broadcast
+            true
           else
             @total -= 1
+            @ready.broadcast
+            false
           end
-          @ready.broadcast
         end
+        connection.close unless retain
       end
 
       def shutdown
@@ -52,6 +55,7 @@ module Hamster
           @closed = true
           connections = @available
           @available = []
+          @total -= connections.length
           @ready.broadcast
           connections
         end

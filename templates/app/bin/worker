@@ -1,0 +1,24 @@
+require_relative "../config/application"
+require "hamster/jobs/worker"
+threads = ENV.fetch("WORKER_THREADS", "2").to_i
+base = __APP_MODULE__.database_configuration
+configuration = Hamster::Database::Configuration.new(adapter: base.adapter, host: base.host, port: base.port,
+  database: base.database, username: base.username, password: base.password,
+  pool_size: ENV.fetch("JOB_DATABASE_POOL_SIZE", (threads * 2 + 2).to_s), checkout_timeout: base.checkout_timeout)
+database = Hamster::Database.new(configuration, migrations_path: File.join(__APP_MODULE__.root, "db/migrations"))
+Hamster::Jobs.database = database
+begin
+  database.verify!
+  queue = Hamster::Jobs::PostgresQueue.new(database: database, lease_seconds: ENV.fetch("JOB_LEASE_SECONDS", "30").to_f)
+  queue.verify!
+  worker = Hamster::Jobs::Worker.new(queue, threads: threads, queues: ENV.fetch("JOB_QUEUES", "default").split(","), drain_timeout: ENV.fetch("JOB_DRAIN_SECONDS", "10").to_f)
+  if ARGV == ["--once"]
+    worker.run_once
+  elsif ARGV.empty?
+    exit(worker.run ? 0 : 1)
+  else
+    raise ArgumentError, "Usage: worker [--once]"
+  end
+ensure
+  database.shutdown
+end
