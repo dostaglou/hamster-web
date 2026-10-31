@@ -13,7 +13,11 @@ module Hamster
       def initialize(root)
         @root = File.expand_path(root)
         raise ArgumentError, "storage root cannot be a symlink" if File.symlink?(@root)
-        Dir.mkdir(@root, 0700) unless File.exist?(@root)
+        unless File.exist?(@root)
+          Dir.mkdir(@root, 0700)
+          # The pinned native Dir.mkdir binding ignores its optional mode.
+          File.chmod(0700, @root)
+        end
         raise Error, "storage directory must be private (0700)" unless (File.stat(@root).mode & 0077) == 0
         @canonical = File.realpath(@root)
         @identity = File.stat(@root).ino

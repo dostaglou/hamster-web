@@ -25,6 +25,16 @@ class StorageTest < Minitest::Test
       assert_raises(Hamster::Storage::MissingBlob) { disk.open(key) }
     end
   end
+  def test_new_storage_directories_are_private
+    Dir.mktmpdir do |parent|
+      root = File.join(parent, "blobs")
+      disk = Hamster::Storage::Disk.new(root)
+      assert_equal 0700, File.stat(root).mode & 0777
+      disk.put(StringIO.new(""), key: "f" * 64)
+      assert_equal 0600, File.stat(File.join(root, "f" * 64)).mode & 0777
+    end
+  end
+
   def test_symlinks_are_rejected
     Dir.mktmpdir do |root|
       disk = Hamster::Storage::Disk.new(root)
