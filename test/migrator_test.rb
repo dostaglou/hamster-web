@@ -66,6 +66,13 @@ class MigratorTest < Minitest::Test
       db.rollback!
       assert_equal "pending", db.migration_status.last["status"]
       db.migrate!
+      File.write("#{root}/003_failure.sql", "CREATE TABLE failed_migration_probe (id INTEGER); SELECT * FROM no_such_migration_table;")
+      assert_raises(Hamster::Database::Error) { db.migrate! }
+      db.with_connection do |c|
+        assert_nil c.execute("SELECT to_regclass('failed_migration_probe') AS name").hashes.first["name"]
+      end
+      assert_equal "pending", db.migration_status.last["status"]
+      File.unlink("#{root}/003_failure.sql")
       File.write("#{root}/002_probe.rb", "# changed")
       assert_raises(Hamster::Database::ConfigurationError) { db.migrate! }
       File.unlink("#{root}/002_probe.rb")

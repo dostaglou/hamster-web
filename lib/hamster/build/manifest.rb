@@ -19,6 +19,7 @@ module Hamster
           priority = 4 if path == "app/routes/mappings.rb"
           [priority, path]
         end
+        paths = Callbacks.order(paths.to_h { |path| [path, File.read(File.join(root, path))] })
         sources = {}
         Dir.glob("{app/routes,app/views}/**/*.html.erb", base: root).sort.each do |path|
           name = path.sub(%r{\Aapp/(?:routes|views)/}, "").sub(%r{/view\.html\.erb\z}, "").delete_suffix(".html.erb")

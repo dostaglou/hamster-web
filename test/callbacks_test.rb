@@ -35,6 +35,19 @@ class CallbacksTest < Minitest::Test
           nil
         end
       end
+      class Resource < Hamster::Action::Base
+        after_action :replace_body
+        after_action :fail_after
+        def call
+          [200, {}, context.env["original"]]
+        end
+        def replace_body(response)
+          [200, {}, context.env["replacement"]]
+        end
+        def fail_after(response)
+          raise "after hook failed"
+        end
+      end
     end
   SOURCE
 
@@ -61,6 +74,30 @@ class CallbacksTest < Minitest::Test
     output = Hamster::Build::Callbacks.compile([SOURCE])
     assert_equal 1, output.scan("result = authenticate").size
     assert_operator output.index("result = first"), :<, output.index("result = authenticate")
+  end
+
+  def test_replacement_stream_cleanup_after_callback_failure
+    body_type = Class.new do
+      attr_reader :closed
+      def each; yield "chunk"; end
+      def close; @closed = true; end
+    end
+    original, replacement = body_type.new, body_type.new
+    context = Hamster::Context.new({"original" => original, "replacement" => replacement})
+    assert_raises(RuntimeError) { CallbackFixture::Resource.new(context).dispatch }
+    assert original.closed
+    assert replacement.closed
+  end
+
+  def test_dependency_order_for_concerns_and_parent_actions
+    sources = {
+      "a.rb" => "module App; module A; include B; end; class Child < Parent; end; end",
+      "z.rb" => "module App; module B; end; class Parent < Hamster::Action::Base; end; end"
+    }
+    assert_equal %w[z.rb a.rb], Hamster::Build::Callbacks.order(sources)
+    assert_raises(ArgumentError) do
+      Hamster::Build::Callbacks.order({"a.rb" => "module A; include B; end", "b.rb" => "module B; include A; end"})
+    end
   end
 
   def test_static_callback_validation

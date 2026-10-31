@@ -102,6 +102,14 @@ RUBY
   bin/hamster db:migrate:history --json > /artifacts/migration-history.json
   bin/hamster db:rollback STEP=1
   bin/hamster db:migrate
+  bin/hamster generate --help
+  bin/hamster generate --schema > /artifacts/generator-schema.json
+  bin/hamster agents:install --dry-run
+  test -f .agents/skills/hamster-endpoint/SKILL.md
+  test -f .agents/skills/hamster-database/SKILL.md
+  mkdir -p app/concerns
+  cp /smoke/callback_concern.rb app/concerns/audit.rb
+  bin/hamster generate endpoint callbacks/check --concern SmokeApp::Audit
   cp /smoke/file_actions.rb app/routes/file_actions.rb
   ruby -e 'p="app/routes/mappings.rb"; s=File.read(p); s=s.sub("      get \"/up\",", "      post \"/upload\", to: FileFixtures::Upload, as: :upload\n      get \"/download\", to: FileFixtures::Download, as: :download\n      get \"/up\","); File.write(p,s)'
   mkdir -p /work/files /work/uploads
@@ -130,6 +138,7 @@ stage=http-assertions
 grep -F 'Welcome to smoke_app' /artifacts/response.html
 grep -F 'Your Hamster application is running.' /artifacts/response.html
 if [[ "$mode" == candidate ]]; then
+  python3 /smoke/check_callback_http.py http://127.0.0.1:4000/callbacks/check callbacks/check
   stage=file-http
   python3 /smoke/check_file_http.py http://127.0.0.1:4000
   test -z "$(find /work/uploads -type f -print -quit)"

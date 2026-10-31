@@ -31,7 +31,7 @@ class PackageTest < Minitest::Test
       )
       assert status.success?, output
       app = File.join(directory, "smoke_app")
-      %w[bin/server bin/hamster config/application.rb config/commands.rb config/database.rb config/manifest.rb spin.toml spin.lock Dockerfile .dockerignore app/application.rb app/routes/up/index/action.rb public/.keep].each do |file|
+      %w[bin/server bin/hamster config/application.rb config/commands.rb config/database.rb config/manifest.rb spin.toml spin.lock Dockerfile .dockerignore app/application.rb app/routes/up/index/action.rb public/.keep .agents/skills/hamster-endpoint/SKILL.md .agents/skills/hamster-database/SKILL.md .agents/hamster-guidance.json AGENTS.md].each do |file|
         assert File.file?(File.join(app, file)), "Missing packaged template/generated file: #{file}"
       end
       assert File.executable?(File.join(app, "bin/hamster"))

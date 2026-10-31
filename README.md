@@ -269,3 +269,34 @@ server entrypoints should add the same require. This provides a bounded binary
 write compatibility path for the pinned Spinel compiler without modifying installed
 gems; it preserves Spinner's TLS handling and write deadlines. It is inactive on
 CRuby.
+
+### Project-local agent guidance and endpoint generation
+
+New apps include versioned `AGENTS.md` plus discoverable `hamster-endpoint` and
+`hamster-database` skills under `.agents/skills/`. No global agent configuration
+is required. Agents that do not automatically discover these files can read them
+explicitly from AGENTS.md.
+
+Run `bin/hamster generate --help` or `bin/hamster generate --schema` for the
+installed generator contract. For example:
+
+```sh
+bin/hamster generate endpoint posts/show --method GET --path /posts/:id --name post --view
+bin/hamster manifest:check
+bin/hamster build
+```
+
+Use repeatable `--concern Module` and `--before method` options for existing
+concerns and callback methods. Generation validates in staging and refuses file,
+route, or name conflicts. Automatic route edits require the conventional generated
+Mappings class with literal routes and explicit names; customized layouts receive
+a diagnostic without partial output. No authentication stubs are generated.
+
+Existing apps can run `bin/hamster agents:install --dry-run`, then
+`bin/hamster agents:install`. Managed-file hashes live in
+`.agents/hamster-guidance.json`. Missing files are installed, unchanged managed
+files are upgraded, and customized files are preserved with a manual-merge
+notice and nonzero exit status. Review old guidance against the current templates
+when a conflict is reported. The full component-generator and unified check/test
+CLI roadmaps remain separate; use documented project tests and existing native
+build checks.

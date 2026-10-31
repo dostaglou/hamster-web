@@ -18,12 +18,20 @@ module Hamster
       when "--version"
         puts Web::VERSION
         0
+      when "generate"
+        require_relative "endpoint_generator"
+        EndpointGenerator.run(root, args)
+        0
+      when "agents:install"
+        raise ArgumentError, "Usage: agents:install [--dry-run]" unless args.empty? || args == ["--dry-run"]
+        require_relative "agent_guidance"
+        AgentGuidance.install(root, dry_run: args == ["--dry-run"]) ? 0 : 1
       when "new"
         raise ArgumentError, "Usage: hamster new AppName" unless args.length == 1
         Generator.create(args.first)
         0
       when nil, "help", "--help", "-h"
-        puts "Usage: hamster new AppName | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:rollback [STEP=n] | db:migrate:status | db:migrate:history --json | db:structure:dump | db:validate"
+        puts "Usage: hamster new AppName | generate --help | agents:install [--dry-run] | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:rollback [STEP=n] | db:migrate:status | db:migrate:history --json | db:structure:dump | db:validate"
         0
       else
         if %w[db:rollback db:migrate:history].include?(command)
@@ -194,6 +202,8 @@ module Hamster
           end
         end
         Build::Manifest.generate(staging)
+        require_relative "agent_guidance"
+        AgentGuidance.install(staging)
         File.chmod(0755, File.join(staging, "bin/hamster"))
         raise "Destination appeared during generation" if File.exist?(destination)
         File.rename(staging, destination)

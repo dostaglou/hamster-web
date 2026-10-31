@@ -15,6 +15,32 @@ module Hamster
         end
       end
 
+      def order(sources)
+        definitions, owners = {}, {}
+        sources.each do |path, source|
+          local = {}
+          scan(Ripper.sexp(source), "", local)
+          local.each { |name, d| definitions[name] = d; owners[name] = path }
+        end
+        dependencies = sources.keys.to_h { |path| [path, []] }
+        definitions.each do |name, d|
+          ([d[:parent]].compact + d[:includes]).each do |reference|
+            scopes = name.split("::")[0...-1]
+            resolved = scopes.size.downto(0).map { |n| (scopes.take(n) + [reference]).join("::") }.find { |candidate| owners.key?(candidate) }
+            dependency = owners[resolved]
+            dependencies[owners[name]] << dependency if dependency && dependency != owners[name]
+          end
+        end
+        result = []
+        until dependencies.empty?
+          ready = dependencies.find { |_, deps| deps.all? { |path| result.include?(path) } }
+          raise ArgumentError, "cyclic application inheritance/concern dependencies" unless ready
+          result << ready.first
+          dependencies.delete(ready.first)
+        end
+        result
+      end
+
       def compile(sources)
         definitions = {}
         sources.each { |source| scan(Ripper.sexp(source), "", definitions) }
@@ -49,7 +75,7 @@ module Hamster
           before.each { |target| lines += ["    result = #{target}", "    return callback_response(result) unless result.nil?"] }
           lines += ["    nil", "  end", "  def run_after_actions(response)"]
           after.each { |target| lines += ["    replacement = #{target}(response)", "    unless replacement.nil?", "      replacement = callback_response(replacement)", "      response[2].close if response[2] != replacement[2] && response[2].respond_to?(:close)", "      response = replacement", "    end"] }
-          lines += ["    response", "  end", "end"]
+          lines += ["    response", "  rescue StandardError", "    response[2].close if response[2].respond_to?(:close)", "    raise", "  end", "end"]
           lines.join("\n")
         end.join("\n") + "\n"
       end

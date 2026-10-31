@@ -43,9 +43,10 @@ assert headers['transfer-encoding'] == 'chunked'
 status, headers, body = request('HEAD', '/download')
 assert status == 200 and body == b''
 # Abort a download; the next request must still succeed.
-sock = socket.create_connection((url.hostname, url.port), timeout=5)
-sock.sendall(b'GET /download HTTP/1.1\r\nHost: localhost\r\n\r\n')
-sock.recv(256)
-sock.close()
-assert request('HEAD', '/download')[0] == 200
+for _ in range(10):
+    sock = socket.create_connection((url.hostname, url.port), timeout=5)
+    sock.sendall(b'GET /download HTTP/1.1\r\nHost: localhost\r\n\r\n')
+    sock.recv(256)
+    sock.close()
+    assert request('HEAD', '/download')[0] == 200
 print('PASS native multipart binary/empty/limits/malformed and streaming GET/HEAD/disconnect')
