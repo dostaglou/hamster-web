@@ -63,7 +63,7 @@ a CRuby-only adapter generated with new applications.
 ## Installation contract and Linux verification
 
 The clean-install gate targets Ruby 3.3.6, Bundler 2.5.23, Hamster
-0.1.0.pre.3, Spinner 0.1.0.pre.1, PostgreSQL 16.6, and unmodified Spinel/Spin
+0.1.0.pre.3, Spinner 0.1.0.pre.4, PostgreSQL 16.6, and unmodified Spinel/Spin
 revision `10f112c51666e7ffd308e0ab90a69c2184870c06`. The exact CI inputs live
 in `script/ci/versions.env`; Linux compatibility is verified by the native
 smoke workflow. This pin does not include the experimental benchmark runtime.
@@ -114,15 +114,15 @@ Spinel installation needed):
 # Public packages, installed directly from RubyGems:
 bash script/ci/run_native_smoke.sh published
 
-# Candidate gem built from this checkout, plus published Spinner:
+# Candidate gems built locally (Spinner must be supplied until published):
 mkdir -p tmp
 gem build hamster-web.gemspec --output tmp/hamster-web.gem
-bash script/ci/run_native_smoke.sh candidate tmp/hamster-web.gem
+bash script/ci/run_native_smoke.sh candidate tmp/hamster-web.gem /path/to/spinel-spinner-0.1.0.pre.4.gem
 ```
 
 Each invocation builds an image without caches, installs the compiler from its
 pinned upstream source, and tests in a separate consumer image containing no
-Hamster/Spinner checkout. Only the CI harness and optional candidate gem enter
+Hamster/Spinner checkout. Only the CI harness and optional candidate gems enter
 that environment. Gems, Bundler settings, and the generated app use fresh
 isolated directories. Package resolution must stay within that gem installation.
 The test creates a disposable database, applies a real migration twice, checks
@@ -135,7 +135,11 @@ Logs, lockfiles, resolved package paths, and HTTP output are retained under
 `tmp/native-smoke-<mode>/` (override with `SMOKE_ARTIFACTS_DIR`). GitHub Actions
 uploads those diagnostics even on failure. Pull requests and main test the
 candidate package; weekly and manually triggered runs also test published
-packages. Public pins are advanced deliberately when releases are available.
+packages. The optional third argument installs a local Spinner gem before Hamster; both
+versions, installed paths, and candidate archive/file hashes are checked before
+generation and under the app bundle. Omitting it uses the published Spinner pin.
+Spinner `0.1.0.pre.4` must be published separately before published-package runs
+or normal RubyGems installs can use this contract.
 
 ## Generated deployment images
 
@@ -159,6 +163,11 @@ exclusions and runtime linkage, applies a real migration, verifies HTTP and Dock
 health checks as a non-root user without Ruby/Spinel, stops PostgreSQL to test
 liveness, and verifies clean SIGTERM shutdown. Diagnostics are retained in
 `tmp/app-docker-smoke/`. This runs as a separate job in the native smoke workflow.
+For an unpublished Spinner, run
+`SPINNER_CANDIDATE_GEM=/path/to/spinel-spinner-0.1.0.pre.4.gem bash script/ci/run_app_docker_smoke.sh`.
+The harness stages both gems and replaces the installation step only in the
+temporary test Dockerfile. Generated deployment Dockerfiles retain their normal
+released-package installation workflow.
 
 For the full build/upload, PostgreSQL provisioning, migration, and public HTTPS
 sequence, see [Deploy a generated app to DigitalOcean](docs/deployment/digitalocean.md)
@@ -264,11 +273,14 @@ provision temporary disk for concurrent requests in addition to Spinner's spool
 budget. Parser limits are checked even when called outside Spinner. Malformed
 multipart bodies return 400; exceeded limits return 413.
 
-Generated servers require `hamster/spinner_compat` after Spinner. Existing native
-server entrypoints should add the same require. This provides a bounded binary
-write compatibility path for the pinned Spinel compiler without modifying installed
-gems; it preserves Spinner's TLS handling and write deadlines. It is inactive on
-CRuby.
+Binary response transport requires Spinner `0.1.0.pre.4`. Spinner handles binary
+socket writes for buffered responses, streams, and WebSockets with the pinned
+compiler. Existing apps should update their exact Spinner Gemfile pin and remove
+the old compatibility require, then rebuild their native executable. Hamster owns
+file bodies, path validation, authorization hooks, and upload cleanup. Multipart
+header captures use owned string copies to avoid the pinned runtime's saved-regex
+GC bug across workers; header and file limits remain unchanged. The native gate
+repeats file acceptance and disconnect checks three times.
 
 ### Project-local agent guidance and endpoint generation
 

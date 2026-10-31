@@ -1,5 +1,4 @@
 require "spinner"
-require "hamster/spinner_compat"
 require_relative "../config/application"
 application = __APP_MODULE__.build
 maximum = Integer(ENV.fetch("MAX_BODY_BYTES", "1048576"))

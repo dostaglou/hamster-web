@@ -3,7 +3,9 @@ module Hamster
   class Multipart
     attr_reader :fields, :uploads
     def initialize(input, content_type, options = {})
-      match = content_type.match(/\Amultipart\/form-data\s*;\s*boundary=(?:"([^"\r\n]+)"|([^;\s]+))\s*\z/i)
+      # Spinel 10f112c51 can leave mutable header payloads in regex registers
+      # that another worker's GC does not root. Match owned header copies.
+      match = content_type.dup.match(/\Amultipart\/form-data\s*;\s*boundary=(?:"([^"\r\n]+)"|([^;\s]+))\s*\z/i)
       boundary = match && (match[1] || match[2])
       fail_body(400, "invalid multipart boundary") unless boundary && boundary.bytesize <= 70 && boundary.match?(/\A[ -~]+\z/)
       @input, @buffer, @total = input, "".b, 0
@@ -59,7 +61,7 @@ module Hamster
           headers[key.downcase] = value.strip
         end
         disposition = headers.fetch("content-disposition", "")
-        match = disposition.match(/\Aform-data;\s*name="([^"\r\n\x00]+)"(?:;\s*filename="([^"\r\n\x00]*)")?\z/)
+        match = disposition.dup.match(/\Aform-data;\s*name="([^"\r\n\x00]+)"(?:;\s*filename="([^"\r\n\x00]*)")?\z/)
         fail_body(400, "invalid multipart disposition") unless match
         name, filename = match[1], match[2]
         upload = nil

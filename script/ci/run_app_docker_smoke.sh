@@ -17,6 +17,11 @@ web=$run_id-web
 generator=$run_id-generator
 image=$run_id-runtime
 migration_image=$run_id-migrations
+spinner_candidate=${SPINNER_CANDIDATE_GEM:-}
+if [[ -n "$spinner_candidate" ]]; then
+  [[ -f "$spinner_candidate" ]] || { echo "SPINNER_CANDIDATE_GEM must name a built gem" >&2; exit 2; }
+  cp "$spinner_candidate" "$work_dir/spinel-spinner.gem"
+fi
 stage="generation"
 cleanup() {
   local status=$?
@@ -43,11 +48,41 @@ docker run --rm --label io.hamster.app-smoke=true --name "$generator" \
     mkdir -p "$HOME" "$GEM_HOME"
     cd /framework
     gem build hamster-web.gemspec --output /output/hamster-web.gem
+    if [[ -f /output/spinel-spinner.gem ]]; then
+      gem install /output/spinel-spinner.gem --local --no-document
+    fi
     gem install /output/hamster-web.gem --no-document
+    source /framework/script/ci/versions.env
+    candidates=(/output/hamster-web.gem)
+    if [[ -f /output/spinel-spinner.gem ]]; then candidates+=(/output/spinel-spinner.gem); fi
+    ruby /framework/script/ci/check_gems.rb "$HAMSTER_VERSION" "$SPINNER_VERSION" "${candidates[@]}"
     cd /output
     hamster new DeployApp
   ' 2>&1 | tee "$log_dir/generation.log"
 app_dir=$work_dir/deploy_app
+if [[ -n "$spinner_candidate" ]]; then
+  # Only this disposable Dockerfile consumes local artifacts. Never change the
+  # generated template's released-package installation contract.
+  mkdir -p "$app_dir/.candidates"
+  cp "$work_dir/hamster-web.gem" "$work_dir/spinel-spinner.gem" "$app_dir/.candidates/"
+  cp "$ci_dir/check_gems.rb" "$app_dir/.candidates/"
+  cat >> "$app_dir/.dockerignore" <<'IGNORE'
+!.candidates/*.gem
+IGNORE
+  docker run --rm --user "$(id -u):$(id -g)" \
+    --mount "type=bind,source=$app_dir,target=/app" "$RUBY_IMAGE" ruby -e '
+      path = "/app/Dockerfile"
+      text = File.read(path)
+      old = /^RUN gem install bundler.*?gem install hamster-web[^\n]+/m
+      abort "Missing toolchain package installation" unless text.match?(old)
+      replacement = "COPY .candidates/ /candidates/\n" +
+        "RUN gem install bundler --version 2.5.23 --no-document && " +
+        "gem install /candidates/spinel-spinner.gem --local --no-document && " +
+        "gem install /candidates/hamster-web.gem --no-document && " +
+        "ruby /candidates/check_gems.rb __HAMSTER__ __SPINNER__ /candidates/hamster-web.gem /candidates/spinel-spinner.gem"
+      File.write(path, text.sub(old, replacement.sub("__HAMSTER__", ARGV[0]).sub("__SPINNER__", ARGV[1])))
+    ' "$HAMSTER_VERSION" "$SPINNER_VERSION"
+fi
 # Exercise the payload copied into runtime, and exclusions from builder layers.
 cat > "$app_dir/db/migrations/001_container.sql" <<'SQL'
 CREATE TABLE container_probes (id INTEGER PRIMARY KEY, message TEXT NOT NULL);

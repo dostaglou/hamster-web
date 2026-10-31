@@ -39,7 +39,10 @@ class PackageTest < Minitest::Test
       assert_includes gemfile, %(gem "hamster-web", "= #{spec.version}", require: "hamster/web")
       assert_includes gemfile, %(gem "spinel-spinner", "= #{contract.fetch('SPINNER_VERSION')}", require: "spinner")
       assert_includes File.read(File.join(app, "spin.lock")), contract.fetch("PG_REVISION")
-      assert_includes File.read(File.join(app, "bin/server")), 'require "spinner"'
+      server = File.read(File.join(app, "bin/server"))
+      assert_includes server, 'require "spinner"'
+      refute_includes server, "spinner_compat"
+      refute package.contents.include?("lib/hamster/spinner_compat.rb")
       assert_includes File.read(File.join(app, "app/routes/home/index/view.html.erb")), "Welcome to smoke_app"
       dockerfile = File.read(File.join(app, "Dockerfile"))
       assert_includes dockerfile, contract.fetch("RUBY_IMAGE")

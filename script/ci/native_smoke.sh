@@ -44,31 +44,30 @@ spin --version | tee /artifacts/spin-version.txt
 grep -F "${SPINEL_REVISION:0:8}" /artifacts/spin-version.txt
 stage=installation
 gem install bundler --version "$BUNDLER_VERSION" --no-document
-gem install spinel-spinner --version "$SPINNER_VERSION" --no-document
+if [[ "$mode" == candidate && -f /input/spinel-spinner.gem ]]; then
+  gem install /input/spinel-spinner.gem --local --no-document
+else
+  gem install spinel-spinner --version "$SPINNER_VERSION" --no-document
+fi
 if [[ "$mode" == candidate ]]; then
   gem install /input/hamster-web.gem --no-document
 else
   gem install hamster-web --version "$HAMSTER_VERSION" --no-document
 fi
 # Check package provenance before generation and again under the app's bundle.
-cat > /work/check_gems.rb <<'RUBY'
-require "rubygems"
-expected = {"hamster-web" => ARGV.fetch(0), "spinel-spinner" => ARGV.fetch(1)}
-expected.each do |name, version|
-  spec = Gem::Specification.find_by_name(name, "= #{version}")
-  path = File.realpath(spec.full_gem_path)
-  abort "#{name} resolved outside isolated gems: #{path}" unless path.start_with?(File.realpath(ENV.fetch("GEM_HOME")) + "/")
-  puts "#{name} #{spec.version}: #{path}"
-end
-RUBY
-ruby /work/check_gems.rb "$HAMSTER_VERSION" "$SPINNER_VERSION" | tee /artifacts/gem-paths.txt
+candidate_paths=()
+if [[ "$mode" == candidate ]]; then
+  candidate_paths+=(/input/hamster-web.gem)
+  if [[ -f /input/spinel-spinner.gem ]]; then candidate_paths+=(/input/spinel-spinner.gem); fi
+fi
+ruby /smoke/check_gems.rb "$HAMSTER_VERSION" "$SPINNER_VERSION" "${candidate_paths[@]}" | tee /artifacts/gem-paths.txt
 stage=generation
 hamster new SmokeApp
 cd smoke_app
 stage=setup
 bin/hamster setup
 cp Gemfile.lock spin.lock /artifacts/
-bundle exec ruby /work/check_gems.rb "$HAMSTER_VERSION" "$SPINNER_VERSION"
+bundle exec ruby /smoke/check_gems.rb "$HAMSTER_VERSION" "$SPINNER_VERSION" "${candidate_paths[@]}"
 grep -Fx "$PG_REVISION" vendor/packages/pg-0.2.0/.spin-sha
 export DATABASE_HOST=postgres DATABASE_PORT=5432 DATABASE_NAME=smoke_app_test
 export DATABASE_USERNAME=smoke DATABASE_PASSWORD=smoke DATABASE_ADMIN_USERNAME=smoke DATABASE_ADMIN_PASSWORD=smoke
@@ -140,7 +139,12 @@ grep -F 'Your Hamster application is running.' /artifacts/response.html
 if [[ "$mode" == candidate ]]; then
   python3 /smoke/check_callback_http.py http://127.0.0.1:4000/callbacks/check callbacks/check
   stage=file-http
-  python3 /smoke/check_file_http.py http://127.0.0.1:4000
-  test -z "$(find /work/uploads -type f -print -quit)"
+  # Repeat allocations and disconnects: a single round can miss a cross-worker
+  # collection of the pinned runtime's saved multipart regex subjects.
+  for round in 1 2 3; do
+    echo "File acceptance round $round"
+    python3 /smoke/check_file_http.py http://127.0.0.1:4000
+    test -z "$(find /work/uploads -type f -print -quit)"
+  done
 fi
 echo "PASS: $mode packages generated, migrated, compiled and served native HTTP 200"

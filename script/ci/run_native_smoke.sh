@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
-# Only this directory and an optional .gem artifact enter the consumer image.
+# Only this directory and optional .gem artifacts enter the consumer image.
 set -Eeuo pipefail
 ci_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$ci_dir/versions.env"
 mode=${1:-published}
 if [[ "$mode" != candidate && "$mode" != published ]]; then
-  echo "Usage: $0 published | candidate path/to/hamster-web.gem" >&2
+  echo "Usage: $0 published | candidate path/to/hamster-web.gem [path/to/spinel-spinner.gem]" >&2
   exit 2
 fi
 gem_file=
+spinner_gem_file=
 if [[ "$mode" == candidate ]]; then
-  [[ $# == 2 && -f "$2" ]] || { echo "Candidate mode requires a built .gem artifact" >&2; exit 2; }
+  [[ ( $# == 2 || $# == 3 ) && -f "$2" ]] || { echo "Candidate mode requires a built .gem artifact" >&2; exit 2; }
   gem_file=$(cd -- "$(dirname -- "$2")" && pwd)/$(basename -- "$2")
+  if [[ $# == 3 ]]; then
+    [[ -f "$3" ]] || { echo "Spinner candidate must be a built .gem artifact" >&2; exit 2; }
+    spinner_gem_file=$(cd -- "$(dirname -- "$3")" && pwd)/$(basename -- "$3")
+  fi
 fi
 command -v docker >/dev/null || { echo "Install Docker to run the Linux smoke test" >&2; exit 1; }
 docker info >/dev/null 2>&1 || { echo "Start the Docker daemon before running the smoke test" >&2; exit 1; }
@@ -53,5 +58,8 @@ consumer_args=(--label io.hamster.native-smoke=true --name "$consumer" --network
   --mount "type=bind,source=$log_dir,target=/artifacts")
 if [[ "$mode" == candidate ]]; then
   consumer_args+=(--mount "type=bind,source=$gem_file,target=/input/hamster-web.gem,readonly")
+fi
+if [[ -n "$spinner_gem_file" ]]; then
+  consumer_args+=(--mount "type=bind,source=$spinner_gem_file,target=/input/spinel-spinner.gem,readonly")
 fi
 docker run "${consumer_args[@]}" "$image" "$mode"

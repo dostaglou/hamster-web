@@ -18,6 +18,6 @@ Gem::Specification.new do |spec|
   spec.bindir = "exe"
   spec.executables = ["hamster"]
   spec.require_paths = ["lib"]
-  spec.add_dependency "spinel-spinner", "= 0.1.0.pre.1"
+  spec.add_dependency "spinel-spinner", "= 0.1.0.pre.4"
   spec.add_dependency "irb", ">= 1.13", "< 2"
 end

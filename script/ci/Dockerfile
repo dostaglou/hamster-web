@@ -14,6 +14,6 @@ RUN test -n "$SPINEL_REVISION" && mkdir /src && cd /src \
 
 FROM base
 COPY --from=compiler /opt/spinel /opt/spinel
-COPY versions.env native_smoke.sh check_file_http.py file_actions.rb check_callback_http.py callback_concern.rb /smoke/
+COPY check_gems.rb versions.env native_smoke.sh check_file_http.py file_actions.rb check_callback_http.py callback_concern.rb /smoke/
 # Reset inherited Ruby/Bundler configuration before invoking the consumer.
 ENTRYPOINT ["env", "-i", "PATH=/opt/spinel/bin:/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "bash", "/smoke/native_smoke.sh"]

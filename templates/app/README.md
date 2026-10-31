@@ -3,7 +3,7 @@
 Run `bin/hamster setup` to install gems and vendor the locked Spin PostgreSQL driver.
 Spin and Spinel must already be installed. The preview installation contract is
 Ruby 3.3.6, Bundler 2.5.23, Hamster __HAMSTER_VERSION__, spinel-spinner
-0.1.0.pre.1, and Spinel/Spin revision
+0.1.0.pre.4, and Spinel/Spin revision
 `10f112c51666e7ffd308e0ab90a69c2184870c06`. See the framework README at
 https://github.com/dostaglou/hamster-web for compiler installation prerequisites.
 Spinner's gem name is `spinel-spinner`; application code uses `require "spinner"`.
