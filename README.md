@@ -11,15 +11,14 @@ JSON actions, forms, compiled components, fingerprinted assets, attachments and
 native jobs/workers are implemented in this source checkout. Telemetry extraction
 remains under development.
 
-The new APIs below describe unreleased source changes. Spinner 0.1.0.pre.4 is
-currently a local preview dependency; use a built candidate package with
-`SPINNER_CANDIDATE_GEM` for Docker smoke checks until it is published.
+This preview pairs Hamster 0.1.0.pre.4 with Spinner 0.1.0.pre.4. See
+[CHANGELOG.md](CHANGELOG.md) for the framework changes in this release.
 
 Install the public framework preview from RubyGems:
 
 ```sh
 gem install bundler --version 2.5.23
-gem install hamster-web --version 0.1.0.pre.3
+gem install hamster-web --version 0.1.0.pre.4
 hamster new MyApp
 cd my_app
 bin/hamster setup
@@ -82,7 +81,7 @@ remains quiet about disabled declarations.
 ## Installation contract and Linux verification
 
 The clean-install gate targets Ruby 3.3.6, Bundler 2.5.23, Hamster
-0.1.0.pre.3, Spinner 0.1.0.pre.4, PostgreSQL 16.6, and unmodified Spinel/Spin
+0.1.0.pre.4, Spinner 0.1.0.pre.4, PostgreSQL 16.6, and unmodified Spinel/Spin
 revision `10f112c51666e7ffd308e0ab90a69c2184870c06`. The exact CI inputs live
 in `script/ci/versions.env`; Linux compatibility is verified by the native
 smoke workflow. This pin does not include the experimental benchmark runtime.
@@ -123,7 +122,7 @@ To build a local framework preview instead of installing the public package:
 
 ```sh
 gem build hamster-web.gemspec
-gem install --local hamster-web-0.1.0.pre.3.gem
+gem install --local hamster-web-0.1.0.pre.4.gem
 ```
 
 Run the clean Linux gate locally with Docker running (no local PostgreSQL or
@@ -133,10 +132,10 @@ Spinel installation needed):
 # Public packages, installed directly from RubyGems:
 bash script/ci/run_native_smoke.sh published
 
-# Candidate gems built locally (Spinner must be supplied until published):
+# Candidate Hamster with the released Spinner dependency:
 mkdir -p tmp
 gem build hamster-web.gemspec --output tmp/hamster-web.gem
-bash script/ci/run_native_smoke.sh candidate tmp/hamster-web.gem /path/to/spinel-spinner-0.1.0.pre.4.gem
+bash script/ci/run_native_smoke.sh candidate tmp/hamster-web.gem
 ```
 
 Each invocation builds an image without caches, installs the compiler from its
@@ -157,8 +156,8 @@ candidate package; weekly and manually triggered runs also test published
 packages. The optional third argument installs a local Spinner gem before Hamster; both
 versions, installed paths, and candidate archive/file hashes are checked before
 generation and under the app bundle. Omitting it uses the published Spinner pin.
-Spinner `0.1.0.pre.4` must be published separately before published-package runs
-or normal RubyGems installs can use this contract.
+Published-package runs and normal RubyGems installs resolve the separate
+Spinner `0.1.0.pre.4` release.
 
 ## Generated deployment images
 
@@ -182,9 +181,8 @@ exclusions and runtime linkage, applies a real migration, verifies HTTP and Dock
 health checks as a non-root user without Ruby/Spinel, stops PostgreSQL to test
 liveness, and verifies clean SIGTERM shutdown. Diagnostics are retained in
 `tmp/app-docker-smoke/`. This runs as a separate job in the native smoke workflow.
-For an unpublished Spinner, run
-`SPINNER_CANDIDATE_GEM=/path/to/spinel-spinner-0.1.0.pre.4.gem bash script/ci/run_app_docker_smoke.sh`.
-The harness stages both gems and replaces the installation step only in the
+To test a future Spinner candidate, set `SPINNER_CANDIDATE_GEM` to its built gem.
+The harness stages candidate gems and replaces the installation step only in the
 temporary test Dockerfile. Generated deployment Dockerfiles retain their normal
 released-package installation workflow.
 

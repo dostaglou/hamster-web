@@ -1,7 +1,7 @@
 # Deploy a generated Hamster app to DigitalOcean
 
 Use one Ubuntu droplet for the native app, PostgreSQL, and the Caddy HTTPS
-reverse proxy. The examples use Hamster 0.1.0.pre.3 and an image upload deployment. The runtime executable runs as UID 10001; the migration
+reverse proxy. The examples use Hamster 0.1.0.pre.4 and an image upload deployment. The runtime executable runs as UID 10001; the migration
 image retains Ruby and the CLI for explicit database operations.
 
 Replace `203.0.113.10` with your droplet IP and `hamster.example.com` with your
@@ -13,12 +13,12 @@ at runtime. Keep them outside source control and Docker image layers.
 
 On the build machine, select Ruby 3.3 or newer. Use `ruby`, `gem`, and `hamster`
 from the same Ruby installation: different rbenv Rubies have separate installed
-gems. The `_0.1.0.pre.3_` executable argument selects a gem version within that
+gems. The `_0.1.0.pre.4_` executable argument selects a gem version within that
 Ruby installation.
 
 ```bash
-gem install hamster-web --version 0.1.0.pre.3 --no-document
-hamster _0.1.0.pre.3_ new DummyHamsterApp
+gem install hamster-web --version 0.1.0.pre.4 --no-document
+hamster _0.1.0.pre.4_ new DummyHamsterApp
 cd dummy_hamster_app
 ls Dockerfile .dockerignore app/application.rb app/routes/up/index/action.rb
 

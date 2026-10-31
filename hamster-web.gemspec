@@ -9,11 +9,15 @@ Gem::Specification.new do |spec|
   spec.email = ["dostaglou@gmail.com"]
   spec.summary = "A Spinel web framework and application generator"
   spec.description = "Hamster provides a compiled Spinel web runtime and a CLI for generating applications."
+  spec.homepage = "https://github.com/dostaglou/hamster-web"
+  spec.metadata["source_code_uri"] = spec.homepage
+  spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
+  spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
   spec.files = Dir.chdir(__dir__) do
     Dir.glob("{exe,lib,templates}/**/*", File::FNM_DOTMATCH).select { |path| File.file?(path) } +
-      %w[README.md LICENSE.txt]
+      %w[README.md LICENSE.txt CHANGELOG.md]
   end
   spec.bindir = "exe"
   spec.executables = ["hamster"]
