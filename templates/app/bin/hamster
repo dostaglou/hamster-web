@@ -1,4 +1,12 @@
 #!/usr/bin/env ruby
+# Bootstrap dependencies before activating the app bundle on first setup.
+if ARGV == ["setup"]
+  require "bundler"
+  ready = Bundler.with_unbundled_env do
+    system("bundle", "check", out: File::NULL, err: File::NULL) || system("bundle", "install")
+  end
+  abort "Dependency installation failed; install Bundler and run bin/hamster setup" unless ready
+end
 require "bundler/setup"
 require "hamster/cli"
 exit Hamster::CLI.run(ARGV)

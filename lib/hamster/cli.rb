@@ -125,7 +125,10 @@ module Hamster
       when "setup"
         require_tool!("bundle", "install Bundler with gem install bundler")
         require_tool!("spin", "install the supported Spinel toolchain (including spin); see the Hamster README") if File.file?(File.join(app_root, "spin.toml"))
-        Dir.chdir(app_root) { raise "Dependency installation failed" unless system("bundle", "install") }
+        Dir.chdir(app_root) do
+          ready = system("bundle", "check", out: File::NULL, err: File::NULL) || system("bundle", "install")
+          raise "Dependency installation failed" unless ready
+        end
         Dir.chdir(app_root) { raise "Spin dependency vendoring failed" unless system("spin", "vendor") } if File.file?(File.join(app_root, "spin.toml"))
         Build::PostgresCompatibility.apply(app_root) if File.file?(File.join(app_root, "spin.toml"))
       when "db:create", "db:migrate", "db:rollback", "db:migrate:status", "db:migrate:history", "db:structure:dump"

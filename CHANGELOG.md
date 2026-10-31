@@ -25,6 +25,7 @@
   native workers with Docker/Kamal examples. Delivery is at least once.
 - Record the Active Job portability spike and the deliberate smaller native API;
   do not claim Rails Active Job compatibility or production readiness.
+- Bootstrap the application bundle before loading the CLI on first setup.
 - Include Minitest in generated test bundles so request checks work under Bundler.
 - Extend native, browser CRUD, PostgreSQL recovery and Linux image verification.
 
