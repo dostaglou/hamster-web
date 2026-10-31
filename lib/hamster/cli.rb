@@ -22,6 +22,9 @@ module Hamster
         require_relative "endpoint_generator"
         EndpointGenerator.run(root, args)
         0
+      when "dev"
+        require_relative "dev"
+        Dev.run(root, args)
       when "test"
         require_relative "test_runner"
         TestRunner.run(root, args)
@@ -37,7 +40,7 @@ module Hamster
         Generator.create(args.first)
         0
       when nil, "help", "--help", "-h"
-        puts "Usage: hamster new AppName | generate --help | check [--quick|--full] [--json] | test [path] [--json] | hooks:install [--pre-push] | agents:install [--dry-run] | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:rollback [STEP=n] | db:migrate:status | db:migrate:history --json | db:structure:dump | db:validate"
+        puts "Usage: hamster new AppName | generate --help | check [--quick|--full] [--json] | test [path] [--json] | hooks:install [--pre-push] | agents:install [--dry-run] | dev | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:rollback [STEP=n] | db:migrate:status | db:migrate:history --json | db:structure:dump | db:validate"
         0
       else
         if %w[db:rollback db:migrate:history db:validate].include?(command)

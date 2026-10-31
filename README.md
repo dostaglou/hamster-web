@@ -406,3 +406,20 @@ require `HAMSTER_TEST_ALLOW_REMOTE=1`; use a dedicated test PostgreSQL service.
 `TestDatabase.rollback(database) { |connection| ... }` isolates fixture changes
 within a transaction that always rolls back. Never share that connection with
 another thread. No production endpoint is inferred from application settings.
+
+### Development rebuild loop
+
+Run `bin/hamster dev` after setup. It hashes source/view/config/asset/test files,
+debounces changes, runs fast CRuby syntax checks, regenerates deterministic
+manifests through the build command, compiles Spinel, checks freshness, and starts
+the new executable. The server stops as soon as an edit is observed. Failed
+builds leave it stopped, show compiler diagnostics, and recover on the next edit.
+Changes during compilation trigger another build before any server starts.
+
+One build runs at a time; polling uses a bounded interval. Build timings are
+printed after every successful rebuild. Ctrl-C/TERM drains the entire child
+server process group with a deadline, then forces cleanup if necessary. Full
+request/native tests remain explicit (`check --full`); dev reports the checks it
+actually ran. AOT compilation still occurs on edits; no incremental compiler or
+runtime code reloading is promised. Compare reported timings after small action,
+view and route edits on your machine before tuning the loop.
