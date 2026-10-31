@@ -14,7 +14,32 @@ module Hamster
     end
 
     def form
-      @form ||= Http.parse_parameters(env.fetch("rack.input").read.to_s)
+      if multipart?
+        parse_multipart.fields
+      else
+        @form ||= Http.parse_parameters(env.fetch("rack.input").read.to_s)
+      end
+    end
+
+    def multipart?
+      env.fetch("CONTENT_TYPE", "").downcase.start_with?("multipart/")
+    end
+
+    def parse_multipart
+      @multipart ||= Multipart.new(env.fetch("rack.input"), env.fetch("CONTENT_TYPE"), env.fetch("hamster.upload_options", {})).parse
+    end
+
+    def uploads
+      multipart? ? parse_multipart.uploads : {}
+    end
+
+    def finish_response(response)
+      response[2] = RequestBody.new(response[2], self) if @multipart && !@multipart.uploads.empty?
+      response
+    end
+
+    def close_uploads
+      @multipart.close if @multipart
     end
 
     def same_origin?

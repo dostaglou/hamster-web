@@ -1,8 +1,21 @@
 require "spinner"
+require "hamster/spinner_compat"
 require_relative "../config/application"
 application = __APP_MODULE__.build
+maximum = Integer(ENV.fetch("MAX_BODY_BYTES", "1048576"))
+memory = Integer(ENV.fetch("BODY_MEMORY_BYTES", "65536"))
+application.upload_options = {
+  max_body_bytes: maximum,
+  max_parts: Integer(ENV.fetch("UPLOAD_MAX_PARTS", "128")),
+  max_part_header_bytes: Integer(ENV.fetch("UPLOAD_MAX_HEADER_BYTES", "16384")),
+  max_field_bytes: Integer(ENV.fetch("UPLOAD_MAX_FIELD_BYTES", "65536")),
+  max_file_bytes: Integer(ENV.fetch("UPLOAD_MAX_FILE_BYTES", maximum.to_s)),
+  upload_directory: ENV.fetch("UPLOAD_DIRECTORY", ENV.fetch("TMPDIR", "/tmp"))
+}
 begin
-  Spinner::Server.new(application, host: ENV.fetch("HOST", "127.0.0.1"), port: ENV.fetch("PORT", "4000").to_i).run
+  Spinner::Server.new(application, max_body_bytes: maximum, body_memory_bytes: memory,
+    spool_directory: ENV.fetch("SPOOL_DIRECTORY", ENV.fetch("TMPDIR", "/tmp")),
+    spool_budget_bytes: Integer(ENV.fetch("SPOOL_BUDGET_BYTES", "134217728")), host: ENV.fetch("HOST", "127.0.0.1"), port: ENV.fetch("PORT", "4000").to_i).run
 ensure
   application.shutdown
 end

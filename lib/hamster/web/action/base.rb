@@ -29,7 +29,11 @@ module Hamster
       def dispatch
         halted = run_before_actions
         return halted unless halted.nil?
-        run_after_actions(callback_response(call))
+        response = callback_response(call)
+        run_after_actions(response)
+      rescue StandardError
+        response[2].close if response && response[2].respond_to?(:close)
+        raise
       end
 
       private
@@ -50,6 +54,16 @@ module Hamster
         raise ArgumentError, "respond locals: must be a Hash" unless locals.is_a?(Hash)
         body = Hamster::View.render(view, locals, layout: layout) if view
         Http.response(status, body, headers, type: type)
+      end
+
+      def send_file(path, root:, filename: nil, content_type: "application/octet-stream", disposition: "attachment")
+        Downloads.file(path, root: root, filename: filename, content_type: content_type, disposition: disposition)
+      end
+
+      def send_data(data, filename:, content_type: "application/octet-stream", disposition: "attachment")
+        headers = Downloads.headers(filename, content_type, disposition)
+        body = data.is_a?(String) ? [data.b] : FileBody.new(data)
+        [200, headers, body]
       end
 
       def redirect_to(path, cookie: nil)

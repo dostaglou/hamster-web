@@ -87,6 +87,28 @@ bin/hamster db:migrate
 bin/hamster db:migrate
 [[ "$(psql -X -d "$DATABASE_NAME" -Atc "SELECT message FROM smoke_probes WHERE id = 1")" == 'native smoke migration' ]]
 [[ "$(psql -X -d "$DATABASE_NAME" -Atc "SELECT count(*) FROM schema_migrations WHERE version = '001'")" == 1 ]]
+if [[ "$mode" == candidate ]]; then
+  cat > db/migrations/002_reversible.rb <<'RUBY'
+class ReversibleSmoke < Hamster::Migration
+  def up
+    create_table :reversible_smoke, columns: {id: :integer}
+  end
+  def down
+    drop_table :reversible_smoke
+  end
+end
+RUBY
+  bin/hamster db:migrate
+  bin/hamster db:migrate:history --json > /artifacts/migration-history.json
+  bin/hamster db:rollback STEP=1
+  bin/hamster db:migrate
+  cp /smoke/file_actions.rb app/routes/file_actions.rb
+  ruby -e 'p="app/routes/mappings.rb"; s=File.read(p); s=s.sub("      get \"/up\",", "      post \"/upload\", to: FileFixtures::Upload, as: :upload\n      get \"/download\", to: FileFixtures::Download, as: :download\n      get \"/up\","); File.write(p,s)'
+  mkdir -p /work/files /work/uploads
+  python3 -c 'from pathlib import Path; Path("/work/files/download.bin").write_bytes(bytes(range(256))*8192)'
+  export MAX_BODY_BYTES=4194304 HAMSTER_FILE_ROOT=/work/files UPLOAD_DIRECTORY=/work/uploads
+  bin/hamster manifest
+fi
 stage=compilation
 bin/hamster manifest:check
 bin/hamster build
@@ -107,4 +129,9 @@ done
 stage=http-assertions
 grep -F 'Welcome to smoke_app' /artifacts/response.html
 grep -F 'Your Hamster application is running.' /artifacts/response.html
+if [[ "$mode" == candidate ]]; then
+  stage=file-http
+  python3 /smoke/check_file_http.py http://127.0.0.1:4000
+  test -z "$(find /work/uploads -type f -print -quit)"
+fi
 echo "PASS: $mode packages generated, migrated, compiled and served native HTTP 200"

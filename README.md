@@ -232,3 +232,40 @@ method calls for both CRuby and Spinel; dynamic callback names are unsupported.
 Code loaded outside a generated manifest does not have generated callback chains.
 Do not override `dispatch` or the generated `run_before_actions`/
 `run_after_actions` methods. Generator flags follow this runtime API.
+
+### Uploads and downloads
+
+`context.form` parses URL-encoded forms as before. For multipart forms, it returns
+arrays of UTF-8 text values per key; `context.uploads` returns arrays of
+`Hamster::UploadedFile` per key. Parsing is lazy and shared between these APIs.
+Uploads expose `filename`, untrusted `content_type`, `size`, and binary `io`.
+`copy_to(destination)` explicitly creates a new durable file without overwriting
+an existing path. Client filenames never determine temporary storage paths.
+Request-owned temporary files are deleted when the response closes, including
+HEAD and interrupted transfers. Copy files before handing work to another process.
+
+Actions can call `send_file("report.bin", root: trusted_directory)` or
+`send_data(io_or_string, filename: "report.bin")`. IO bodies are read in 64 KiB
+chunks and closed after the response. Downloads default to attachment disposition,
+`application/octet-stream`, and `nosniff`; use explicit validated MIME types for
+trusted content. Download paths must be within the canonical trusted root and
+cannot contain symlinks beneath it. Authorization belongs in the action or its
+before hooks. A HEAD request falls back to its GET route and never enumerates the
+response body. Range requests are not implemented.
+
+Generated servers expose `MAX_BODY_BYTES` (1 MiB), `BODY_MEMORY_BYTES` (64 KiB),
+`SPOOL_DIRECTORY`, and `SPOOL_BUDGET_BYTES` (128 MiB across Spinner workers).
+Multipart limits are `UPLOAD_MAX_PARTS` (128), `UPLOAD_MAX_HEADER_BYTES` (16 KiB per
+part), `UPLOAD_MAX_FIELD_BYTES` (64 KiB per field), and `UPLOAD_MAX_FILE_BYTES`
+(defaults to the request limit). `UPLOAD_DIRECTORY` selects the private upload
+spool directory. Increase request and file limits explicitly for larger uploads.
+Upload copies use additional disk space, bounded per request by the body limit;
+provision temporary disk for concurrent requests in addition to Spinner's spool
+budget. Parser limits are checked even when called outside Spinner. Malformed
+multipart bodies return 400; exceeded limits return 413.
+
+Generated servers require `hamster/spinner_compat` after Spinner. Existing native
+server entrypoints should add the same require. This provides a bounded binary
+write compatibility path for the pinned Spinel compiler without modifying installed
+gems; it preserves Spinner's TLS handling and write deadlines. It is inactive on
+CRuby.

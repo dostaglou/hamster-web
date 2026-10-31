@@ -60,7 +60,7 @@ module Hamster
     end
 
     class Base
-      SUPPORTED_METHODS = %w[GET POST PATCH DELETE].freeze
+      SUPPORTED_METHODS = %w[GET HEAD POST PATCH DELETE].freeze
       CONVENTIONAL_ACTIONS = {"New" => "new", "Edit" => "edit", "Create" => "create", "Update" => "update", "Destroy" => "destroy"}.freeze
 
       def self.routes
@@ -68,6 +68,7 @@ module Hamster
       end
 
       def self.get(path, to:, as: nil); add_route("GET", path, to, as); end
+      def self.head(path, to:, as: nil); add_route("HEAD", path, to, as); end
       def self.post(path, to:, as: nil); add_route("POST", path, to, as); end
       def self.patch(path, to:, as: nil); add_route("PATCH", path, to, as); end
       def self.delete(path, to:, as: nil); add_route("DELETE", path, to, as); end

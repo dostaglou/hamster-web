@@ -13,6 +13,7 @@ module Hamster
       method = env.fetch("REQUEST_METHOD", "GET").upcase
       path = env.fetch("PATH_INFO", "/")
       route = @routes.find { |candidate| candidate.match(method, path) }
+      route ||= @routes.find { |candidate| candidate.match("GET", path) } if method == "HEAD"
       unless route
         allowed = @routes.select { |candidate| candidate.match(method, path, method_only: true) }
         return Http.response(:method_not_allowed, METHOD_NOT_ALLOWED,
@@ -20,8 +21,14 @@ module Hamster
         return Http.response(:not_found, NOT_FOUND)
       end
 
-      env["route_params"] = route.match(method, path)
-      route.action.new(Context.new(env, connection)).dispatch
+      env["route_params"] = route.match(method == "HEAD" && route.method == "GET" ? "GET" : method, path)
+      context = Context.new(env, connection)
+      begin
+        context.finish_response(route.action.new(context).dispatch)
+      rescue StandardError
+        context.close_uploads
+        raise
+      end
     end
   end
 end

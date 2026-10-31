@@ -48,7 +48,7 @@ module Hamster
           lines = ["class #{name}", "  def run_before_actions"]
           before.each { |target| lines += ["    result = #{target}", "    return callback_response(result) unless result.nil?"] }
           lines += ["    nil", "  end", "  def run_after_actions(response)"]
-          after.each { |target| lines += ["    replacement = #{target}(response)", "    response = callback_response(replacement) unless replacement.nil?"] }
+          after.each { |target| lines += ["    replacement = #{target}(response)", "    unless replacement.nil?", "      replacement = callback_response(replacement)", "      response[2].close if response[2] != replacement[2] && response[2].respond_to?(:close)", "      response = replacement", "    end"] }
           lines += ["    response", "  end", "end"]
           lines.join("\n")
         end.join("\n") + "\n"

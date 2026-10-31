@@ -1,7 +1,7 @@
 ARG RUBY_IMAGE=ruby:3.3.6-bookworm
 FROM ${RUBY_IMAGE} AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential ca-certificates curl file git libffi-dev libssl-dev pkg-config postgresql-client \
+    build-essential ca-certificates curl file git libffi-dev libssl-dev pkg-config postgresql-client python3 \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS compiler
@@ -14,6 +14,6 @@ RUN test -n "$SPINEL_REVISION" && mkdir /src && cd /src \
 
 FROM base
 COPY --from=compiler /opt/spinel /opt/spinel
-COPY versions.env native_smoke.sh /smoke/
+COPY versions.env native_smoke.sh check_file_http.py file_actions.rb /smoke/
 # Reset inherited Ruby/Bundler configuration before invoking the consumer.
 ENTRYPOINT ["env", "-i", "PATH=/opt/spinel/bin:/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "bash", "/smoke/native_smoke.sh"]
