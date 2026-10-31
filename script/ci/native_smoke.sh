@@ -99,6 +99,7 @@ end
 RUBY
   bin/hamster db:migrate
   env -u DATABASE_NAME -u DATABASE_URL HAMSTER_TEST_DATABASE=1 HAMSTER_TEST_ALLOW_REMOTE=1 TEST_DATABASE_HOST=postgres TEST_DATABASE_PORT=5432 TEST_DATABASE_USERNAME=smoke TEST_DATABASE_PASSWORD=smoke bundle exec ruby -I vendor/packages/pg-0.2.0 /smoke/test_database_probe.rb
+  env -u DATABASE_NAME -u DATABASE_URL HAMSTER_TEST_DATABASE=1 HAMSTER_TEST_ALLOW_REMOTE=1 TEST_DATABASE_HOST=postgres TEST_DATABASE_PORT=5432 TEST_DATABASE_USERNAME=smoke TEST_DATABASE_PASSWORD=smoke bundle exec ruby -I vendor/packages/pg-0.2.0 /smoke/storage_probe.rb
   bin/hamster db:migrate:history --json > /artifacts/migration-history.json
   bin/hamster db:rollback STEP=1
   bin/hamster db:migrate

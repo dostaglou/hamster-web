@@ -505,3 +505,37 @@ pipeline if you need npm package resolution or advanced bundling.
 
 The framework's `examples/frontend` provides native/browser CRUD acceptance with
 components, forms, escaping, CSRF, Turbo updates, Stimulus and no-JS fallback.
+
+### Private attachments and local storage
+
+Require `hamster/storage`. `generate attachments storage` creates the explicit
+SQL migration for blob metadata and attachment references; review and migrate
+it separately. Instantiate `Hamster::Storage::Disk` with a private existing
+parent/mounted directory (0700), then `Storage::Attachments.new(database: db,
+adapter: disk)`. Adapters implement `put(io, key:, max_bytes:)`, `open(key)`,
+`delete(key)` and `exists?(key)`; put returns byte_size and SHA-256 checksum.
+Local disk is implemented; object storage is a future optional adapter.
+
+Upload with explicit filename/owner, then attach the returned blob ID to a
+record_type/record_id/name with owner and an authorization callback. Storage
+keys are independent random values; client names are display metadata only.
+`open`, `download`, `detach` and `delete` require explicit authorization callbacks
+receiving metadata. Bind identity to authenticated application state, never an
+untrusted request owner parameter. Downloads verify size/checksum, default to
+private attachment/octet-stream/nosniff, and return closeable streaming bodies.
+Never place the storage directory under public/ or fingerprinted app assets.
+
+Metadata and files are not one atomic transaction: pending metadata commits
+before file writes, and ready is published only after a completed, flushed disk
+write. Storage uses its own idle DB connections; attach records only after the
+business record commits. Failed uploads remain pending for recovery. Deletion
+locks metadata, refuses shared references, commits deleting state, removes the
+file, then removes metadata. Retries are idempotent; a failed disk deletion
+remains recoverable. Detaching one reference never deletes a shared blob.
+
+Run privileged `cleanup(older_than: cutoff, limit: 100)` explicitly with a grace
+period longer than the maximum upload/attachment workflow. It removes old
+unreferenced ready/pending/deleting blobs and rechecks references under lock.
+No async job system is required. Mount the same private persistent volume across
+single-host web restarts and back up metadata and files together. Multiple hosts
+need shared storage/an object adapter; local disk does not provide replication.
