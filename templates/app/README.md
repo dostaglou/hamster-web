@@ -191,3 +191,19 @@ request/native tests remain explicit (`check --full`); dev reports the checks it
 actually ran. AOT compilation still occurs on edits; no incremental compiler or
 runtime code reloading is promised. Compare reported timings after small action,
 view and route edits on your machine before tuning the loop.
+
+### Static application inspection
+
+`bin/hamster inspect --json` emits a deterministic versioned graph of routes,
+actions, views, tables/columns, queries, concerns, methods/callbacks and tests.
+Nodes have stable declaration-based IDs and relative source paths/lines; edges
+carry `declared`, `inferred`, or `unknown` certainty. `inspect routes --json` and
+`inspect action posts/create --json` filter the graph. `--check` returns nonzero
+for unresolved callbacks/routes, missing views or declared disabled dependencies;
+these checks also participate in `check --quick`.
+
+Inspection parses declarations and manifests without executing application Ruby,
+loading credentials, or connecting to a database. It reports dynamic/unresolved
+references instead of claiming complete Ruby analysis. Test-to-action links use
+generator path conventions and are explicitly inferred. No live DB inspection
+is performed. Graph facts update automatically after renames and new components.

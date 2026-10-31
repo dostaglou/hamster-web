@@ -72,6 +72,13 @@ module Hamster
           end
         end
       end
+      if issues.empty?
+        require_relative "application_graph"
+        graph = ApplicationGraph.new(root).build.report
+        graph["diagnostics"].select { |d| d["severity"] == "error" }.each do |d|
+          issues << diagnostic(d["code"], d["message"], d["path"], d["line"])
+        end
+      end
       completed = ["syntax", "manifest", "conventions"]
       if full && issues.empty?
         test_files = Dir.glob("test/**/*_test.rb", base: root).sort
