@@ -8,7 +8,7 @@ module Hamster
   module Generators
     module Runner
       module_function
-      KINDS = %w[endpoint action view route table migration component form].freeze
+      KINDS = %w[endpoint action view route table migration component form stimulus].freeze
       METHODS = %w[GET HEAD POST PATCH DELETE].freeze
       NAME = /\A[a-z][a-z0-9_]*(?:\/[a-z][a-z0-9_]*)*\z/
       CONSTANT = /\A[A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*\z/
@@ -79,6 +79,10 @@ module Hamster
             expected = options[:view] ? location.split('/').map { |part| camel(part) }.join(' ') : location
             plan.add("test/requests/#{location}_test.rb", "require_relative #{('../' * (location.count('/') + 1) + 'test_helper').inspect}\nclass #{camel(location).delete(':')}RequestTest < AppRequestTest\n  def test_generated_endpoint\n    response = client.request(#{options[:method].inspect}, #{test_path.inspect})\n    assert_status :ok, response\n#{options[:method] == "HEAD" ? '    assert_content_type "text/html", response' : "    assert_html #{expected.inspect}, response"}\n  end\nend\n")
           end
+        when "stimulus"
+          name = location.split('/').last
+          relative = "../" * location.split('/').length + "vendor/stimulus.js"
+          plan.add("app/assets/controllers/#{location}_controller.js", "import { Controller } from #{relative.inspect};\nexport default class extends Controller {\n  static targets = [\"output\"];\n  greet() { this.outputTarget.textContent = \"Hello from #{name}\"; }\n}\n")
         when "form"
           plan.add("app/views/forms/#{location}.html.erb", "<%# locals: form %>\n<%= form.start %>\n<%= form.error_summary %>\n<%= form.label(:title) %>\n<%= form.text(:title) %>\n<%= form.error(:title) %>\n<%= form.submit(\"Save\") %>\n<%= form.finish %>\n")
           plan.add("app/forms/#{location}.rb", "# frozen_string_literal: true\nmodule #{namespace}\nclass #{camel(location).delete(':')}Form < Hamster::Form\n  field :title, type: :string, required: true, max_length: 200\nend\nend\n")

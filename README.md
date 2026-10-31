@@ -469,3 +469,39 @@ fields and are never returned as persistence attributes.
 `generate form posts/create` creates a `PostsCreateForm` and a compiled
 `forms/posts/create` template taking an explicit `form` local. Customize fields,
 authorized action and CSRF policy, then run manifest/check/test/build.
+
+### Compiled components, Turbo and assets
+
+Views support literal text, escaped `<%= expression %>`, comments, explicit
+`locals:`, literal-name `render` with explicit locals, conditional/each blocks,
+and named layout slots via `content_for`/`yield`. They are compiled restricted
+ERB, not arbitrary Rails ERB evaluation. Missing references/locals and dependency
+cycles fail before deployment. Use `generate component card` to create a compiled
+`components/card` partial. Pass component content/slots as explicit locals;
+ordinary strings escape, while reviewed `Hamster::HTML` fragments retain markup.
+
+`Hamster::Turbo.frame(id, content)` and `.stream(action, target, content)` validate
+DOM identifiers and escape untrusted content. Stream actions are replace, append,
+prepend, remove and update. Respond with `type: :turbo_stream`; use 422 for invalid
+submissions and 303 redirects for successful ordinary HTML forms. Explicit Accept
+order breaks equally specific quality ties, so Turbo's preferred stream type is
+honored while absent/wildcard Accept defaults to HTML.
+
+Put CSS, JavaScript and images/fonts in `app/assets/`. Manifest generation writes
+content fingerprints under `public/assets/`, a JSON mapping, and a static native
+registry. Relative ESM imports and CSS URLs are rewritten to fingerprinted URLs;
+missing imports and cycles fail clearly. Use `Hamster::Assets.path("application.css")`
+in compiled views. Only registered fingerprint paths are served, with correct
+MIME, nosniff and immutable caching; arbitrary public files are not exposed.
+The runtime root is `HAMSTER_APP_ROOT` or the working directory. Old fingerprints
+may remain on disk for cached clients; deploy assets with their native binary.
+
+Generated apps vendor pinned MIT-licensed Turbo and Stimulus distributions; see
+`app/assets/vendor/VERSIONS.md`. `generate stimulus greeting` registers a controller
+automatically in the generated module registry. `application.js` is the editable
+entrypoint. No Node, npm, Vite or bundler is required for app setup/build/runtime.
+Static relative module imports are the supported default; use an explicit custom
+pipeline if you need npm package resolution or advanced bundling.
+
+The framework's `examples/frontend` provides native/browser CRUD acceptance with
+components, forms, escaping, CSRF, Turbo updates, Stimulus and no-JS fallback.

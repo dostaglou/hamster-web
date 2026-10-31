@@ -79,3 +79,40 @@ jobs:
           name: generated-app-docker
           path: tmp/app-docker-smoke/
           if-no-files-found: ignore
+
+  frontend-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3.6'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned native toolchain and server
+        run: |
+          source script/ci/versions.env
+          sudo apt-get update
+          sudo apt-get install -y build-essential libffi-dev libssl-dev pkg-config
+          git clone https://github.com/matz/spinel.git /tmp/hamster-spinel
+          git -C /tmp/hamster-spinel checkout --detach "$SPINEL_REVISION"
+          make -C /tmp/hamster-spinel deps
+          make -C /tmp/hamster-spinel -j2
+          make -C /tmp/hamster-spinel install PREFIX="$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          gem install spinel-spinner --version "$SPINNER_VERSION" --no-document
+      - name: Native and browser frontend acceptance
+        run: |
+          ruby -Ilib examples/frontend/generate.rb ../../tmp
+          export HAMSTER_BROWSER_BINARY="$(command -v google-chrome)"
+          export HAMSTER_BROWSER_ARTIFACT="$PWD/tmp/frontend-browser.html"
+          test -n "$HAMSTER_BROWSER_BINARY"
+          ruby -Ilib -rhamster/native_smoke -e 'Hamster::NativeSmoke.run(File.expand_path("tmp/frontend_demo"))'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-browser
+          path: tmp/frontend-browser.html
+          if-no-files-found: ignore

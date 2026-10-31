@@ -1,0 +1,9 @@
+<%# locals: posts, token %>
+<ul>
+<% posts.each do |post| %>
+<li class="post"><%= post[1] %> <%= Hamster::HTML.link_to("Edit", "/posts/#{post[0]}/edit", data: {turbo_frame: "_top"}) %>
+<%# Mutating forms retain ordinary HTML behavior without JavaScript. %>
+<%= Hamster::View::Form.new(action: "/posts/#{post[0]}", method: "DELETE", csrf_token: token).start %>
+<%= Hamster::HTML.tag(:button, "Delete", type: "submit") %></form></li>
+<% end %>
+</ul>

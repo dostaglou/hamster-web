@@ -11,6 +11,7 @@ module Hamster
       def initialize(root)
         @root = File.realpath(root)
         @files = {}
+        @expected = {}
       end
 
       def safe!(path)
@@ -25,16 +26,17 @@ module Hamster
       def add(path, content, replace: false)
         safe!(path)
         raise ArgumentError, "generator file exists: #{path}" if !replace && (files.key?(path) || File.exist?(File.join(root, path)))
-        files[path] = content
+        @expected[path] = File.file?(File.join(root, path)) ? File.binread(File.join(root, path)) : nil unless @expected.key?(path)
+        files[path] = content.b
       end
 
       def validate!
-        %w[app db config test].each do |folder|
+        %w[app db config test public].each do |folder|
           Dir.glob("#{folder}/**/*", File::FNM_DOTMATCH, base: root).each { |path| safe!(path) }
           safe!(folder)
         end
         Dir.mktmpdir("hamster-generate") do |staging|
-          %w[app db config test].each do |folder|
+          %w[app db config test public].each do |folder|
             origin = File.join(root, folder)
             FileUtils.cp_r(origin, staging) if File.directory?(origin)
           end
@@ -46,12 +48,15 @@ module Hamster
           Dir.glob("{app,db,config}/**/*.rb", base: staging).each do |path|
             raise ArgumentError, "invalid Ruby: #{path}" unless Ripper.sexp(File.read(File.join(staging, path)))
           end
-          Build::Manifest.generate(staging)
-          issues = Build::Manifest.check(staging)
-          raise ArgumentError, issues.join("\n") unless issues.empty?
-          %w[config/manifest.rb config/view_registry.rb config/callback_registry.rb].each do |path|
-            add(path, File.read(File.join(staging, path)), replace: true)
+          expected = Build::Manifest.outputs(staging)
+          expected.each do |path, content|
+            target = File.join(staging, path)
+            FileUtils.mkdir_p(File.dirname(target))
+            File.binwrite(target, content)
           end
+          issues = Build::Manifest.check(staging, expected: expected)
+          raise ArgumentError, issues.join("\n") unless issues.empty?
+          expected.each { |path, content| add(path, content, replace: true) }
         end
         files.delete_if { |path, content| File.file?(File.join(root, path)) && File.binread(File.join(root, path)) == content }
         self
@@ -63,6 +68,7 @@ module Hamster
           safe!(path)
           target = File.join(root, path)
           originals[path] = File.file?(target) ? File.binread(target) : nil
+          raise ArgumentError, "File changed during generation: #{path}" unless originals[path] == @expected[path]
         end
         begin
           files.each do |path, content|

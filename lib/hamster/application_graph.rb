@@ -211,6 +211,17 @@ module Hamster
           source.scan(/<%=\s*render\s*(?:\(\s*)?["']([^"']+)["']/).flatten.each { |view| edge("view:#{name}", "view:#{view}", "renders"); @references << [name, view, nil, path, index + 1, "view"] }
         end
       end
+      asset_outputs = Build::Assets.outputs(root)
+      asset_paths = JSON.parse(asset_outputs.fetch("public/assets/manifest.json")).fetch("assets")
+      asset_paths.each do |name, fingerprint|
+        add("asset:#{name}", "asset", name, "app/assets/#{name}", 1, {"url" => fingerprint})
+      end
+      nodes.values.select { |n| n["kind"] == "view" }.each do |view|
+        File.read(File.join(root, view["path"])).scan(/Hamster::Assets.path\(["']([^"']+)["']\)/).flatten.each do |name|
+          edge(view["id"], "asset:#{name}", "uses_asset")
+          diagnostic("asset.missing", "Missing asset #{name}", view["path"], 1) unless asset_paths.key?(name)
+        end
+      end
       @references.each do |owner, reference, column, path, at, relation, origin|
         relation ||= "references"
         if relation == "view"

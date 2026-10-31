@@ -49,7 +49,7 @@ class JSONTest < Minitest::Test
   def test_negotiation_honors_quality_exclusions_and_varies_html
     {"application/json" => :json, "text/html;q=0.5, application/json;q=0.9" => :json,
      "application/json;q=0, */*" => :html, "text/vnd.turbo-stream.html" => :turbo_stream,
-     "image/png" => :none, "*/*" => :html}.each do |accept, expected|
+     "image/png" => :none, "*/*" => :html, "text/vnd.turbo-stream.html, text/html" => :turbo_stream}.each do |accept, expected|
       assert_equal expected, Hamster::Context.new("HTTP_ACCEPT" => accept).format
     end
     app = Hamster::Application.new(routes: Routes)

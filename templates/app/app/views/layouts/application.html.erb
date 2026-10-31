@@ -1,3 +1,4 @@
 <%# locals: title %>
-<!doctype html><html><head><meta charset="utf-8"><title><%= title %></title></head>
+<!doctype html><html><head><meta charset="utf-8"><title><%= title %></title><link rel="stylesheet" href="<%= Hamster::Assets.path("application.css") %>">
+<script type="module" src="<%= Hamster::Assets.path("application.js") %>"></script></head>
 <body><main><%= yield %></main></body></html>

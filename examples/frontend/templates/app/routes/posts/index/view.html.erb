@@ -1,0 +1,7 @@
+<%# locals: form, posts, token %>
+<h1>Posts</h1>
+<%= render "components/editor", locals: {form: form} %>
+<turbo-frame id="posts">
+<%= render "posts/shared/list", locals: {posts: posts, token: token} %>
+</turbo-frame>
+<div data-controller="hello"><button id="greet" data-action="click->hello#greet">Greet</button><output data-hello-target="output"></output></div>

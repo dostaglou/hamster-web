@@ -12,6 +12,8 @@ module Hamster
     end
 
     def call(env)
+      asset = Assets.response(env)
+      return asset if asset
       env["hamster.upload_options"] = @upload_options
       return @router.call(env) unless database
       database.with_connection { |connection| @router.call(env, connection) }

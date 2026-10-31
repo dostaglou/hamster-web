@@ -64,10 +64,10 @@ module Hamster
       accept = env.fetch("HTTP_ACCEPT", "").to_s
       return :html if accept.strip.empty?
       candidates = [[:html, "text/html"], [:json, "application/json"], [:turbo_stream, "text/vnd.turbo-stream.html"]]
-      winner, best = :none, 0.0
+      winner, best, best_specificity, best_index = :none, 0.0, -1, 1000000
       candidates.each do |kind, mime|
-        specificity, quality = -1, 0.0
-        accept.split(",").each do |range|
+        specificity, quality, first_index = -1, 0.0, 1000000
+        accept.split(",").each_with_index do |range, range_index|
           parts = range.strip.downcase.split(";").map(&:strip)
           media = parts.shift
           score = media == mime ? 2 : (media == mime.split("/").first + "/*" ? 1 : (media == "*/*" ? 0 : -1))
@@ -80,11 +80,11 @@ module Hamster
             end
           end
           if score > specificity || (score == specificity && q > quality)
-            specificity, quality = score, q
+            specificity, quality, first_index = score, q, range_index
           end
         end
-        if quality > best
-          winner, best = kind, quality
+        if quality > 0 && (quality > best || (quality == best && (specificity > best_specificity || (specificity == best_specificity && first_index < best_index))))
+          winner, best, best_specificity, best_index = kind, quality, specificity, first_index
         end
       end
       winner
