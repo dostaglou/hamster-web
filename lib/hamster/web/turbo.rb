@@ -16,7 +16,9 @@ module Hamster
       raise ArgumentError, "unsupported Turbo stream action" unless ACTIONS.include?(action.to_s)
       raise ArgumentError, "remove does not accept content" if action.to_s == "remove" && !content.nil?
       template = action.to_s == "remove" ? nil : HTML.tag("template", content)
-      HTML.tag("turbo-stream", template, action: action, target: identifier(target))
+      # action here is a validated Turbo verb, whereas HTML's action attribute
+      # is a URL. Keep the generic helper's URL validation intact.
+      HTML.raw_reviewed("<turbo-stream action=\"#{action}\" target=\"#{identifier(target)}\">#{template}</turbo-stream>")
     end
   end
 end
