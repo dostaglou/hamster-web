@@ -21,7 +21,7 @@ module Hamster
       end
 
       env["route_params"] = route.match(method, path)
-      route.action.new(Context.new(env, connection)).call
+      route.action.new(Context.new(env, connection)).dispatch
     end
   end
 end

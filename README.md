@@ -202,3 +202,33 @@ History JSON has `format_version`, `migrations`, and ordered `events` fields.
 `db/structure.sql`; it is a derived snapshot, never a migration input. It requires
 PostgreSQL client tools. Run database commands only against an explicitly chosen
 database; obtain authorization before changing production databases.
+
+### Action callbacks and concerns
+
+The router invokes framework-owned `dispatch`, which runs before hooks, your
+existing `call`, and then after hooks. Declare hooks with literal symbols:
+
+```ruby
+module Authentication
+  extend Hamster::Action::Callbacks
+  before_action :authenticate
+
+  def authenticate
+    return respond(body: "Unauthorized", status: :unauthorized) unless context.same_origin?
+    nil
+  end
+end
+```
+
+Put shared modules in `app/concerns/` and include them in action classes.
+Before hooks return `nil` to continue or an HTTP response to halt. After hooks
+accept the response, return `nil` to retain it, or return a replacement response.
+They run in registration order, with inherited hooks first, only after a successful
+`call`; they do not run on halts or exceptions. Use `ensure` for unconditional
+cleanup. Repeated inclusion of a concern does not duplicate its hooks.
+
+Run `bin/hamster manifest` after changing callbacks. The manifest generates direct
+method calls for both CRuby and Spinel; dynamic callback names are unsupported.
+Code loaded outside a generated manifest does not have generated callback chains.
+Do not override `dispatch` or the generated `run_before_actions`/
+`run_after_actions` methods. Generator flags follow this runtime API.
