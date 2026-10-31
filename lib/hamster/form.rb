@@ -94,7 +94,7 @@ module Hamster
       key = name.to_s
       @errors[key] ||= []
       @error_codes[key] ||= []
-      @errors[key] << MESSAGES[code] unless @errors[key].include?(MESSAGES[code])
+      @errors[key] << MESSAGES[code].dup unless @errors[key].include?(MESSAGES[code])
       @error_codes[key] << code unless @error_codes[key].include?(code)
       @attributes.delete(key)
       self
