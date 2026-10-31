@@ -1,0 +1,8 @@
+# Replace the example domain and IP before installing as /etc/caddy/Caddyfile.
+hamster.example.com {
+	reverse_proxy 127.0.0.1:4000
+}
+
+http://203.0.113.10 {
+	redir https://hamster.example.com{uri} permanent
+}

@@ -159,3 +159,7 @@ exclusions and runtime linkage, applies a real migration, verifies HTTP and Dock
 health checks as a non-root user without Ruby/Spinel, stops PostgreSQL to test
 liveness, and verifies clean SIGTERM shutdown. Diagnostics are retained in
 `tmp/app-docker-smoke/`. This runs as a separate job in the native smoke workflow.
+
+For the full build/upload, PostgreSQL provisioning, migration, and public HTTPS
+sequence, see [Deploy a generated app to DigitalOcean](docs/deployment/digitalocean.md)
+and its [Caddy configuration example](docs/deployment/Caddyfile.example).
