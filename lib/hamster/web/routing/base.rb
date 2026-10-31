@@ -7,7 +7,8 @@ module Hamster
 
       def initialize(name, method, pattern, action)
         @name, @method, @pattern, @action = name, method, pattern, action
-        @segments = pattern.split("/").reject(&:empty?)
+        @segments = []
+        pattern.split("/").each { |segment| @segments << segment.to_s unless segment.to_s.empty? }
       end
 
       def match(request_method, path, method_only: false)

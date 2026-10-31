@@ -20,9 +20,9 @@ module Hamster
 
       def hashes
         rows.map do |row|
-          columns.each_with_index.each_with_object({}) do |(column, index), result|
-            result[column] = row[index]
-          end
+          result = {}
+          columns.each_with_index { |column, index| result[column] = row[index] }
+          result
         end
       end
     end
