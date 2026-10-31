@@ -2,15 +2,17 @@
 
 module Hamster
   module Http
-    MIME = {html: "text/html; charset=utf-8", turbo: "text/html; charset=utf-8",
+    MIME = {json: "application/json; charset=utf-8", html: "text/html; charset=utf-8", turbo: "text/html; charset=utf-8",
             turbo_stream: "text/vnd.turbo-stream.html; charset=utf-8"}.freeze
     module_function
 
     def parse_parameters(encoded)
-      encoded.split("&").each_with_object({}) do |part, values|
+      values = {}
+      encoded.split("&").each do |part|
         key, value = part.split("=", 2)
         values[decode(key)] = decode(value.to_s)
       end
+      values
     end
 
     def decode(value)

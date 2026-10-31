@@ -361,3 +361,24 @@ Run `bin/hamster hooks:install` explicitly from an app Git root to configure
 `.githooks/pre-commit`; add `--pre-push` for full checks before pushing. Customized
 hooks are preserved. Cloning or generating an app never changes Git config.
 Hooks can be bypassed with Git's normal `--no-verify` option; CI is authoritative.
+
+### JSON actions and explicit negotiation
+
+Use `respond(json: {id: 1}, status: :created)` for UTF-8 JSON; `json: nil`
+produces `null`. Supply exactly one of `view:`, `body:`, or `json:`. Only JSON
+scalars, arrays, and hashes with string/symbol keys are supported. Select record
+fields explicitly; arbitrary objects, duplicate normalized keys, cycles, invalid
+UTF-8 and nonfinite numbers are rejected.
+
+`context.json` lazily parses and caches `application/json` or `application/*+json`
+bodies with a default 1 MiB limit (server-owned env key `hamster.json_max_bytes`
+can lower it). Invalid bodies return 400, wrong media types 415, and oversized
+bodies 413. JSON and form parsing are mutually exclusive per request. Spinner's
+transport limit still applies independently.
+
+Branch on `context.wants_json?` or `context.format` (`:html`, `:json`,
+`:turbo_stream`, `:none`) when an endpoint offers variants. Negotiation honors
+Accept quality/specificity and defaults to HTML for absent Accept or ties;
+respond with 406 explicitly for `:none`. Negotiated responses include `Vary:
+Accept, Turbo-Frame`, including the HTML branch. Existing HTML/Turbo rendering
+continues through `respond(view: ...)` and `type: :turbo_stream`.

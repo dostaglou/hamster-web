@@ -9,7 +9,8 @@ module Hamster
 
     class Base
       extend Callbacks
-      STATUSES = {ok: 200, see_other: 303, unauthorized: 401, forbidden: 403,
+      UNSET = :__hamster_unset_response__
+      STATUSES = {ok: 200, created: 201, no_content: 204, bad_request: 400, not_acceptable: 406, unsupported_media_type: 415, payload_too_large: 413, see_other: 303, unauthorized: 401, forbidden: 403,
                   not_found: 404, method_not_allowed: 405, unprocessable_entity: 422,
                   upgrade_required: 426, service_unavailable: 503}.freeze
       attr_reader :context
@@ -48,12 +49,17 @@ module Hamster
         response
       end
 
-      def respond(view: nil, body: nil, locals: {}, layout: "layouts/application",
+      def respond(view: nil, body: nil, json: UNSET, locals: {}, layout: "layouts/application",
                   status: :ok, type: :html, headers: {})
-        raise ArgumentError, "respond requires exactly one of view: or body:" if view.nil? == body.nil?
+        count = (view.nil? ? 0 : 1) + (body.nil? ? 0 : 1) + (json == UNSET ? 0 : 1)
+        raise ArgumentError, "respond requires exactly one of view:, body:, or json:" unless count == 1
+        unless json == UNSET
+          body = JSONValue.generate(json)
+          type = :json
+        end
         raise ArgumentError, "respond locals: must be a Hash" unless locals.is_a?(Hash)
         body = Hamster::View.render(view, locals, layout: layout) if view
-        Http.response(status, body, headers, type: type)
+        Http.response(status, body, context.response_headers(headers), type: type)
       end
 
       def send_file(path, root:, filename: nil, content_type: "application/octet-stream", disposition: "attachment")
