@@ -113,3 +113,19 @@ All generators accept `--dry-run` and `--json`. JSON lists the exact changed
 relative files, including refreshed manifests. Proposals are parsed and checked
 in staging before writes; collisions, symlinks, and unresolved callbacks fail
 without changing the app. Dry runs leave the app untouched.
+
+### Shared checks and optional hooks
+
+`bin/hamster check --quick` checks Ruby syntax, manifest freshness, literal route
+references/conflicts and action view references without rewriting files or
+connecting to a database. `--json` returns versioned diagnostic codes, relative
+paths and line numbers. `check --full` adds project `test/**/*_test.rb` tests and
+compiles `test/native_server.rb`, starts it on a private ephemeral loopback port,
+and checks `/up`. It also runs `test/native_http.rb` when present. The default
+native test entrypoint uses no database; database tests must explicitly select
+an isolated disposable test database. CI runs full checks in the native consumer.
+
+Run `bin/hamster hooks:install` explicitly from an app Git root to configure
+`.githooks/pre-commit`; add `--pre-push` for full checks before pushing. Customized
+hooks are preserved. Cloning or generating an app never changes Git config.
+Hooks can be bypassed with Git's normal `--no-verify` option; CI is authoritative.

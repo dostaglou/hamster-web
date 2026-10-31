@@ -23,5 +23,5 @@ project's test instructions before editing.
 Generation safely rejects customized route layouts it cannot update. Inspect
 that diagnostic and make a focused manual edit when necessary. Do not add
 runtime eval, reflective callback dispatch, local application requires, or
-invented `check`/`test` CLI commands. Keep compiler/build tooling outside the
+unsupported CLI commands. Run `bin/hamster check --quick` and `check --full` for the shared validation harness. Keep compiler/build tooling outside the
 runtime require chain.

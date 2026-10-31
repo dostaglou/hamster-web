@@ -117,6 +117,7 @@ RUBY
   bin/hamster manifest
 fi
 stage=compilation
+if [[ "$mode" == candidate ]]; then bin/hamster check --full --json > /artifacts/check-full.json; fi
 bin/hamster manifest:check
 bin/hamster build
 test -x bin/smoke_app-server
