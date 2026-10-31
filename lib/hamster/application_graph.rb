@@ -169,6 +169,7 @@ module Hamster
       return "table" if parent == "Hamster::Table"
       return "query" if parent == "Hamster::Query"
       return "form" if parent == "Hamster::Form"
+      return "job" if parent == "Hamster::Job"
       resolved = resolve(parent, name.split("::")[0...-1].join("::"))
       resolved ? kind(resolved, seen + [name]) : nodes["class:#{name}"]["kind"]
     end
@@ -200,6 +201,9 @@ module Hamster
         end
       end
       @definitions.each_key { |name| nodes["class:#{name}"]["kind"] = kind(name) }
+      Build::Jobs.declarations(sources.values.map { |source| Ripper.sexp(source) }).each do |owner, name, versions|
+        nodes["class:#{owner}"]["attributes"].merge!("job_name" => name, "accepted_versions" => versions) if nodes["class:#{owner}"]
+      end
       @definitions.each_key do |name|
         node = nodes["class:#{name}"]
         node["attributes"] = table_attributes(name) if node["kind"] == "table"

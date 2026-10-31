@@ -8,7 +8,7 @@ module Hamster
   module Generators
     module Runner
       module_function
-      KINDS = %w[endpoint action view route table migration component form stimulus attachments].freeze
+      KINDS = %w[endpoint action view route table migration component form stimulus attachments job].freeze
       METHODS = %w[GET HEAD POST PATCH DELETE].freeze
       NAME = /\A[a-z][a-z0-9_]*(?:\/[a-z][a-z0-9_]*)*\z/
       CONSTANT = /\A[A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*\z/
@@ -79,6 +79,9 @@ module Hamster
             expected = options[:view] ? location.split('/').map { |part| camel(part) }.join(' ') : location
             plan.add("test/requests/#{location}_test.rb", "require_relative #{('../' * (location.count('/') + 1) + 'test_helper').inspect}\nclass #{camel(location).delete(':')}RequestTest < AppRequestTest\n  def test_generated_endpoint\n    response = client.request(#{options[:method].inspect}, #{test_path.inspect})\n    assert_status :ok, response\n#{options[:method] == "HEAD" ? '    assert_content_type "text/html", response' : "    assert_html #{expected.inspect}, response"}\n  end\nend\n")
           end
+        when "job"
+          name = "#{JSON.parse(File.read(File.join(root, 'config/hamster.json'))).fetch('name')}.#{location.tr('/', '.')}"
+          plan.add("app/jobs/#{location}.rb", "module #{namespace}\nclass #{camel(location).delete(':')}Job < Hamster::Job\n  job #{name.inspect}, version: 1\n  def perform(arguments, version:)\n    raise NotImplementedError, \"Implement this job before enqueueing\"\n  end\nend\nend\n")
         when "attachments"
           require_relative "../storage"
           version = options[:timestamp] || Time.now.utc.strftime("%Y%m%d%H%M%S")

@@ -103,6 +103,8 @@ RUBY
   bin/hamster db:migrate:history --json > /artifacts/migration-history.json
   bin/hamster db:rollback STEP=1
   bin/hamster db:migrate
+  bundle exec ruby /smoke/run_native_fixture.rb jobs
+  bundle exec ruby /smoke/run_native_fixture.rb storage
   bin/hamster generate --help
   bin/hamster generate --schema > /artifacts/generator-schema.json
   bin/hamster agents:install --dry-run

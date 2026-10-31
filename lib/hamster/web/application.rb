@@ -24,6 +24,7 @@ module Hamster
     end
 
     def shutdown
+      Jobs.shutdown
       database.shutdown if database
     end
   end

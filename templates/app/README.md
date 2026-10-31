@@ -306,3 +306,38 @@ unreferenced ready/pending/deleting blobs and rechecks references under lock.
 No async job system is required. Mount the same private persistent volume across
 single-host web restarts and back up metadata and files together. Multiple hosts
 need shared storage/an object adapter; local disk does not provide replication.
+
+### Native jobs and bounded asynchronous execution
+
+The Active Job portability spike and reuse decision are recorded in the framework's
+`docs/compatibility/active-job.md`. The current native API deliberately accepts a
+single explicit JSON argument hash, not Rails arbitrary arguments or GlobalID.
+
+Subclass `Hamster::Job`, declare `job "mail.deliver", version: 1`, and implement
+`perform(arguments, version:)`. Use `perform_now({"id" => 1})` or
+`perform_later({"id" => 1}, metadata: {})`. Payloads are versioned, limited to
+64 KiB and JSON values, and copied across the queue boundary. Declare older
+supported payload versions with `accepts: [1]` when advancing the current version;
+handle the provided version explicitly. `generate job deliver_mail` creates an
+intentionally unimplemented job. Run manifest/build after adding or changing jobs.
+The generated registry calls known job classes directly under Spinel.
+
+The default adapter is inline. Configure `Hamster::Jobs::Async.new(threads: 2,
+capacity: 64)` explicitly for bounded in-process execution. Full queues raise
+`Overloaded`; stopped queues reject admission. Worker threads never inherit
+request-scoped DB connections; acquire their own scoped connection inside jobs.
+Failures are isolated and retained in a bounded `failures` list containing only
+job identity and error class, without arguments or exception-message data.
+
+Async jobs are ephemeral: restart/crash loses queued or active work. Shutdown
+stops admission and drains to a deadline, then drops pending payloads and returns
+false if user code remains active. Running user code is not killed unsafely;
+its bounded execution slot remains until return or process replacement. Hamster
+application shutdown invokes job shutdown before closing its DB pool. Standalone
+programs must call `Hamster::Jobs.shutdown` themselves. Spinner owns no job pool
+or job lifecycle.
+
+For deterministic tests configure `Hamster::Jobs::TestAdapter`, inspect its
+serialized `enqueued` payloads, then call `perform_enqueued` or `clear`. Shut down
+an async adapter before replacing it. The candidate native CI also compiles and
+runs CPU/concurrency/failure probes for jobs and binary disk storage.

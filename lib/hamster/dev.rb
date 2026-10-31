@@ -26,7 +26,7 @@ module Hamster
         paths = Dir.glob("{app,db,config,lib,public,assets,test}/**/*", base: root).select { |p| File.file?(File.join(root, p)) }
         paths += %w[Gemfile Gemfile.lock spin.toml spin.lock].select { |p| File.file?(File.join(root, p)) }
         paths.reject! { |path| path.start_with?("public/assets/") }
-        paths -= %w[config/manifest.rb config/view_registry.rb config/callback_registry.rb config/asset_registry.rb]
+        paths -= %w[config/manifest.rb config/view_registry.rb config/callback_registry.rb config/asset_registry.rb config/job_registry.rb]
         paths.sort.to_h { |path| [path, Digest::SHA256.file(File.join(root, path)).hexdigest] }
       rescue Errno::ENOENT
         retry

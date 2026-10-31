@@ -18,3 +18,5 @@ require_relative "web/router"
 require_relative "web/application"
 
 require_relative "form"
+
+require_relative "jobs"
