@@ -23,9 +23,12 @@ module Hamster
         Generator.create(args.first)
         0
       when nil, "help", "--help", "-h"
-        puts "Usage: hamster new AppName | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:validate"
+        puts "Usage: hamster new AppName | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:rollback [STEP=n] | db:migrate:status | db:migrate:history --json | db:structure:dump | db:validate"
         0
       else
+        if %w[db:rollback db:migrate:history].include?(command)
+          return dispatch(command, args)
+        end
         raise ArgumentError, "Unexpected arguments: #{args.join(' ')}" unless args.empty?
         dispatch(command)
       end
@@ -51,7 +54,7 @@ module Hamster
       raise "Required executable #{executable.inspect} was not found; #{instruction}"
     end
 
-    def self.dispatch(command)
+    def self.dispatch(command, args = [])
       app_root = root
       metadata = JSON.parse(File.read(File.join(app_root, "config/hamster.json")))
       binary = ENV.fetch("HAMSTER_SERVER_BINARY", File.join(app_root, "bin", "#{metadata.fetch('name')}-server"))
@@ -75,7 +78,13 @@ module Hamster
         Dir.chdir(app_root) { raise "Dependency installation failed" unless system("bundle", "install") }
         Dir.chdir(app_root) { raise "Spin dependency vendoring failed" unless system("spin", "vendor") } if File.file?(File.join(app_root, "spin.toml"))
         Build::PostgresCompatibility.apply(app_root) if File.file?(File.join(app_root, "spin.toml"))
-      when "db:create", "db:migrate"
+      when "db:create", "db:migrate", "db:rollback", "db:migrate:status", "db:migrate:history", "db:structure:dump"
+        require_relative "database/migrator"
+        if command == "db:rollback"
+          raise ArgumentError, "Usage: db:rollback [STEP=n]" unless args.empty? || (args.length == 1 && args.first.match?(/\ASTEP=[1-9][0-9]*\z/))
+        elsif command == "db:migrate:history"
+          raise ArgumentError, "Usage: db:migrate:history --json" unless args == ["--json"]
+        end
         require_tool!("spin", "install the supported Spinel toolchain and run bin/hamster setup")
         output, status = Open3.capture2e("spin", "list", "--json", chdir: app_root)
         raise "Cannot resolve PostgreSQL dependency: #{output}" unless status.success?
@@ -92,8 +101,24 @@ module Hamster
         else
           database = Hamster::Database.new(configuration, migrations_path: File.join(app_root, "db/migrations"))
           begin
-            database.migrate!
-            puts "Database migrated: #{configuration.database}"
+            case command
+            when "db:migrate"
+              database.migrate!
+              puts "Database migrated: #{configuration.database}"
+            when "db:rollback"
+              database.rollback!(args.empty? ? 1 : args.first.split("=").last.to_i)
+              puts "Database rolled back: #{configuration.database}"
+            when "db:migrate:status"
+              database.migration_status.each { |row| puts [row["version"], row["status"], row["file"]].join("\t") }
+            when "db:migrate:history"
+              puts JSON.generate(database.migration_history)
+            when "db:structure:dump"
+              require_tool!("pg_dump", "install PostgreSQL client tools")
+              output, error, status = Open3.capture3({"PGPASSWORD" => configuration.password.to_s}, "pg_dump", "--schema-only", "--no-owner", "--no-privileges", "-h", configuration.host, "-p", configuration.port.to_s, "-U", configuration.username, configuration.database)
+              raise "Schema dump failed: #{error}" unless status.success?
+              FileUtils.mkdir_p(File.join(app_root, "db"))
+              File.write(File.join(app_root, "db/structure.sql"), output)
+            end
           ensure
             database.shutdown
           end

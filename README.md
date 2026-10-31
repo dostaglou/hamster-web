@@ -163,3 +163,42 @@ liveness, and verifies clean SIGTERM shutdown. Diagnostics are retained in
 For the full build/upload, PostgreSQL provisioning, migration, and public HTTPS
 sequence, see [Deploy a generated app to DigitalOcean](docs/deployment/digitalocean.md)
 and its [Caddy configuration example](docs/deployment/Caddyfile.example).
+
+### Migration lifecycle
+
+`bin/hamster db:migrate` applies chronological `db/migrations/VERSION_name.sql`
+and `.rb` files. Ruby files define one `Hamster::Migration` subclass with explicit
+`up` and `down` methods. For example:
+
+```ruby
+class CreateWidgets < Hamster::Migration
+  def up
+    create_table :widgets, columns: {id: :bigint, name: :text}
+    add_index :widgets, :name, name: :widgets_name
+  end
+
+  def down
+    drop_table :widgets
+  end
+end
+```
+
+The tooling supports `add_column`, `remove_column`, `change_column`,
+`remove_index` and `execute(sql)` for custom PostgreSQL DDL. Each migration runs
+in its own transaction: do not include transaction-control SQL or operations
+such as concurrent index creation that require running outside a transaction.
+Ruby migrations run in CRuby tooling, never in the compiled server.
+
+Use `db:rollback STEP=1`, `db:migrate:status`, or `db:migrate:history --json`.
+Rollback preflights the selected batch and refuses SQL migrations or Ruby files
+without `down`. Applied files must remain available and unchanged. Existing
+tracking rows keep their versions/timestamps with unknown historical checksums;
+new applications record SHA-256 checksums and apply/rollback events. All tracking
+and migration changes are serialized through a PostgreSQL advisory lock.
+History JSON has `format_version`, `migrations`, and ordered `events` fields.
+`legacy_unknown` denotes a preserved tracking row without checksum provenance.
+
+`db:structure:dump` explicitly writes a schema-only `pg_dump` to
+`db/structure.sql`; it is a derived snapshot, never a migration input. It requires
+PostgreSQL client tools. Run database commands only against an explicitly chosen
+database; obtain authorization before changing production databases.

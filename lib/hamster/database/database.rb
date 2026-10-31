@@ -36,29 +36,6 @@ module Hamster
       end
     end
 
-    def migrate!
-      with_connection do |connection|
-        connection.transaction do
-          connection.execute(<<~SQL)
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-              version TEXT PRIMARY KEY,
-              applied_at TIMESTAMPTZ NOT NULL
-            )
-          SQL
-
-          applied = rows(connection, "SELECT version FROM schema_migrations ORDER BY version")
-          migration_files.each do |version, path|
-            next if applied.any? { |row| row["version"] == version }
-
-            connection.execute_script(File.read(path))
-            connection.execute("INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)",
-                               [version, Time.now.utc.iso8601])
-          end
-        end
-      end
-      true
-    end
-
     def verify!
       with_connection do |connection|
         present = rows(connection, "SELECT to_regclass('public.schema_migrations') AS name")
@@ -81,8 +58,8 @@ module Hamster
     end
 
     def migration_files
-      files = Dir[File.join(@migrations_path, "*.sql")].sort.map do |path|
-        [File.basename(path, ".sql").split("_", 2).first, path]
+      files = Dir[File.join(@migrations_path, "*.{sql,rb}")].sort.map do |path|
+        [File.basename(path).sub(/\.(sql|rb)\z/, "").split("_", 2).first, path]
       end
       versions = files.map(&:first)
       raise ConfigurationError, "duplicate migration versions" unless versions.uniq.length == versions.length

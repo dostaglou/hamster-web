@@ -11,7 +11,7 @@ module Hamster
       module_function
 
       def outputs(root)
-        paths = Dir.glob("{app,db}/**/*.rb", base: root).sort_by do |path|
+        paths = Dir.glob("{app,db}/**/*.rb", base: root).reject { |path| path.start_with?("db/migrations/") }.sort_by do |path|
           priority = path.start_with?("db/") ? 0 : path.start_with?("app/models/") ? 1 : 2
           priority = 3 if path == "app/routes/mappings.rb"
           [priority, path]
