@@ -29,6 +29,20 @@ class ApplicationGraphTest < Minitest::Test
       assert one["nodes"].all? { |n| n["path"] && n["line"] > 0 }
     end
   end
+  def test_literal_route_namespaces_have_correct_paths_and_independent_names
+    app do |root|
+      path = File.join(root, "app/routes/mappings.rb")
+      source = File.read(path)
+      insertion = '      namespace :admin do' + "\n" + '        get "/posts", to: GraphApp::Routes::Admin::Posts::Show::Action, as: :posts' + "\n      end\n" + '      namespace :api do' + "\n" + '        get "/posts", to: GraphApp::Routes::Admin::Posts::Show::Action, as: :posts' + "\n      end\n"
+      File.write(path, source.sub("    end\n  end\nend", insertion + "    end\n  end\nend"))
+      graph = Hamster::ApplicationGraph.new(root).build.report("routes")
+      assert graph["valid"], graph["diagnostics"].inspect
+      routes = graph["nodes"].select { |node| node["kind"] == "route" }
+      assert routes.any? { |route| route["attributes"]["pattern"] == "/admin/posts" && route["attributes"]["name"] == "admin_posts" }
+      assert routes.any? { |route| route["attributes"]["pattern"] == "/api/posts" && route["attributes"]["name"] == "api_posts" }
+    end
+  end
+
   def test_disabled_dependencies_missing_views_and_renames
     app do |root|
       FileUtils.mkdir_p(File.join(root, "db/tables"))

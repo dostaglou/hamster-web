@@ -10,6 +10,7 @@ module Hamster
     def initialize(root)
       @root = File.realpath(root)
       @nodes, @edges, @diagnostics, @definitions, @references = {}, [], [], {}, []
+      @route_keys, @route_names = [], []
     end
     def token(node)
       return nil unless node.is_a?(Array)
@@ -90,16 +91,25 @@ module Hamster
       parts = owner.to_s.split("::")
       parts.length.downto(0).map { |n| (parts.take(n) + [reference]).join("::") }.find { |candidate| @definitions.key?(candidate) }
     end
-    def walk(node, owner, path)
+    def walk(node, owner, path, route_scopes = [])
       return unless node.is_a?(Array)
+      if node[0] == :method_add_block && (namespace_call = invocation(node[1])) && namespace_call[0] == "namespace"
+        scope = literal(namespace_call[1].first)
+        if scope == UNKNOWN
+          diagnostic("route.dynamic_namespace", "Namespace routes cannot be resolved statically", path, line(node), "info")
+        else
+          walk(node[2], owner, path, route_scopes + [scope.to_s])
+        end
+        return
+      end
       if [:class, :module].include?(node[0])
         local = constant(node[1])
         return diagnostic("inspect.dynamic_class", "Dynamic declaration cannot be resolved", path, line(node), "info") unless local
         name = local.include?("::") ? local : [owner, local].reject(&:empty?).join("::")
         parent = node[0] == :class ? constant(node[2]) : nil
         @definitions[name] ||= {parent: parent, node: node}
-        add("class:#{name}", node[0] == :module ? "concern" : "class", name, path, line(node[1]), {"parent" => parent})
-        walk(node[node[0] == :class ? 3 : 2], name, path)
+        add("class:#{name}", node[0] == :module ? "module" : "class", name, path, line(node[1]), {"parent" => parent})
+        walk(node[node[0] == :class ? 3 : 2], name, path, [])
         return
       elsif node[0] == :def
         name = node[1][1]
@@ -140,9 +150,19 @@ module Hamster
         when "get", "head", "post", "patch", "delete"
           pattern, action = literal(args.first), constant(options["to"])
           if pattern != UNKNOWN && action
-            route = "route:#{method.upcase}:#{pattern}"
-            diagnostic("route.duplicate", "Duplicate route #{method.upcase} #{pattern}", path, line(node)) if nodes.key?(route)
-            add(route, "route", "#{method.upcase} #{pattern}", path, line(node), {"method" => method.upcase, "pattern" => pattern, "name" => literal(options["as"]) == UNKNOWN ? nil : literal(options["as"])})
+            prefix = route_scopes.join("/")
+            pattern = "/#{prefix}#{pattern == '/' ? '' : pattern}" unless prefix.empty?
+            name = known(options["as"])
+            name = nil if name == "unknown"
+            name = (route_scopes + [name]).join("_") if name && !route_scopes.empty?
+            route = "route:#{owner}:#{method.upcase}:#{pattern}"
+            key = [owner, method, pattern.gsub(/:[a-zA-Z0-9_]+/, ":param")]
+            if @route_keys.include?(key) || (name && @route_names.include?([owner, name]))
+              diagnostic("route.duplicate", "Duplicate route method/path or name", path, line(node))
+            end
+            @route_keys << key
+            @route_names << [owner, name] if name
+            add(route, "route", "#{method.upcase} #{pattern}", path, line(node), {"method" => method.upcase, "pattern" => pattern, "name" => name, "mapping" => owner})
             @references << [owner, action, nil, path, line(node), "routes_to", route]
           end
         when "respond"
@@ -160,7 +180,7 @@ module Hamster
           end
         end
       end
-      node.each { |child| walk(child, owner, path) if child.is_a?(Array) }
+      node.each { |child| walk(child, owner, path, route_scopes) if child.is_a?(Array) }
     end
     def kind(name, seen = [])
       return "class" if seen.include?(name)
@@ -241,6 +261,7 @@ module Hamster
           target = resolve(reference, owner)
           if target
             edge(origin || "class:#{owner}", "class:#{target}", relation)
+            nodes["class:#{target}"]["kind"] = "concern" if relation == "includes" && nodes["class:#{target}"]["kind"] == "module"
             table = nodes["class:#{target}"]
             if column
               column_id = column_node(target, column) || "column:#{target}:#{column}"

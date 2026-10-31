@@ -41,27 +41,6 @@ module Hamster
           path, line = location(error.message)
           issues << diagnostic("manifest.invalid", error.message, path, line)
         end
-        definitions = {}
-        paths.grep(%r{\A(?:app|db)/}).reject { |path| path.start_with?("db/migrations/") }.each do |path|
-          Build::Callbacks.scan(Ripper.sexp(File.read(File.join(root, path))), "", definitions)
-        end
-        metadata = JSON.parse(File.read(File.join(root, "config/hamster.json")))
-        namespace = metadata.fetch("name").split("_").map(&:capitalize).join
-        route_names, route_paths = [], []
-        mapping = "app/routes/mappings.rb"
-        File.readlines(File.join(root, mapping)).each_with_index do |line, index|
-          match = line.match(/\b(get|head|post|patch|delete) ["']([^"']+)["'], to: ([A-Z][A-Za-z0-9_:]*)(?:, as: :([a-z][a-z0-9_]*))?/)
-          next unless match
-          reference = match[3]
-          resolved = [reference, "#{namespace}::Routes::#{reference}", "#{namespace}::#{reference}"].find { |name| definitions.key?(name) }
-          issues << diagnostic("route.action_missing", "Unresolved action #{reference}", mapping, index + 1) unless resolved
-          key = [match[1], match[2].gsub(/:[a-zA-Z0-9_]+/, ":param")]
-          if route_paths.include?(key) || (match[4] && route_names.include?(match[4]))
-            issues << diagnostic("route.duplicate", "Duplicate route method/path or name", mapping, index + 1)
-          end
-          route_paths << key
-          route_names << match[4] if match[4]
-        end
         paths.grep(%r{\Aapp/}).each do |path|
           source = File.read(File.join(root, path))
           source.lines.each_with_index do |line, index|
