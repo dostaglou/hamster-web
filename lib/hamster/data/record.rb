@@ -67,12 +67,15 @@ module Hamster
 
     def [](name)
       key = name.to_sym
+      self.class.assert_column_enabled!(key)
       raise MissingAttributeError, "Unloaded attribute #{key}" if @partial && !@attributes.key?(key)
       raise MissingAttributeError, "Undeclared attribute #{key}" unless self.class.columns.key?(key)
       @attributes[key]
     end
 
     def write_attribute(name, value)
+      self.class.assert_column_enabled!(name)
+      raise MissingAttributeError, "Undeclared attribute #{name}" unless self.class.columns.key?(name.to_sym)
       @attributes[name.to_sym] = value
     end
   end

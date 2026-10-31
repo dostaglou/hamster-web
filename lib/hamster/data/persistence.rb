@@ -20,11 +20,11 @@ module Hamster
       end
 
       def create_fields
-        columns.select { |_name, definition| [:create, :both].include?(definition[:write]) }.keys.map(&:to_s)
+        columns.select { |_name, definition| definition[:enabled] && [:create, :both].include?(definition[:write]) }.keys.map(&:to_s)
       end
 
       def update_fields
-        columns.select { |_name, definition| [:update, :both].include?(definition[:write]) }.keys.map(&:to_s)
+        columns.select { |_name, definition| definition[:enabled] && [:update, :both].include?(definition[:write]) }.keys.map(&:to_s)
       end
 
       def create(**attributes)
@@ -33,13 +33,14 @@ module Hamster
 
       # Shared persistence path; the caller owns the record boundary.
       def persist_create(**attributes)
+        assert_column_enabled!(:id)
         check_fields!(attributes, create_fields)
         record = new(**attributes)
         errors = validate_create(attributes)
         return Result.new(record: record, code: :invalid, errors: errors) unless errors.empty?
 
         now = Time.now.utc.iso8601
-        timestamps = %w[created_at updated_at].select { |name| self.columns.key?(name.to_sym) }
+        timestamps = %w[created_at updated_at].select { |name| self.columns[name.to_sym] && self.columns[name.to_sym][:enabled] }
         columns = create_fields + timestamps
         values = create_fields.map { |name| attributes[name.to_sym] } + timestamps.map { now }
         placeholders = (1..columns.length).map { |number| "$#{number}" }.join(", ")
@@ -49,8 +50,8 @@ module Hamster
         return Result.new(record: record, code: :database_error, errors: ["Could not save record."]) unless row
 
         record.id = row["id"]
-        record.write_attribute(:created_at, row["created_at"]) if self.columns.key?(:created_at)
-        record.write_attribute(:updated_at, row["updated_at"]) if self.columns.key?(:updated_at)
+        record.write_attribute(:created_at, row["created_at"]) if timestamps.include?("created_at")
+        record.write_attribute(:updated_at, row["updated_at"]) if timestamps.include?("updated_at")
         Result.new(record: record)
       rescue Hamster::Database::Error => error
         database_failure(record, error)
@@ -66,6 +67,8 @@ module Hamster
       end
 
       def check_fields!(attributes, allowed)
+        assert_enabled!
+        attributes.each_key { |name| assert_column_enabled!(name) }
         unknown = attributes.keys.map(&:to_s) - allowed
         raise ArgumentError, "Undeclared record fields: #{unknown.join(', ')}" unless unknown.empty?
       end
@@ -81,6 +84,7 @@ module Hamster
 
     def update(**changes)
       Instrumentation.record(self.class.name, "update") do
+        self.class.assert_column_enabled!(:id)
         self.class.check_fields!(changes, self.class.update_fields)
         next missing_result if id.nil? || destroyed?
         next Result.new(record: self, code: :invalid, errors: ["No changes supplied."]) if changes.empty?
@@ -91,7 +95,7 @@ module Hamster
         now = Time.now.utc.iso8601
         columns = self.class.update_fields.select { |name| changes.key?(name.to_sym) }
         values = columns.map { |name| changes[name.to_sym] }
-        timestamps = self.class.columns.key?(:updated_at)
+        timestamps = self.class.columns[:updated_at] && self.class.columns[:updated_at][:enabled]
         columns << "updated_at" if timestamps
         values << now if timestamps
         assignments = columns.each_with_index.map { |name, index| "#{name} = $#{index + 1}" }.join(", ")
@@ -114,6 +118,7 @@ module Hamster
 
     def destroy
       Instrumentation.record(self.class.name, "destroy") do
+        self.class.assert_column_enabled!(:id)
         next missing_result if id.nil? || destroyed?
 
         sql = "DELETE FROM #{self.class.write_table_name} WHERE id = $1 RETURNING id"

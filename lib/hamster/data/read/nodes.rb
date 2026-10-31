@@ -5,6 +5,8 @@ module Hamster
     class Error < StandardError; end
     class ValidationError < Error; end
     class DecodeError < Error; end
+    class DisabledTableError < ValidationError; end
+    class DisabledColumnError < ValidationError; end
 
     TYPES = { integer: 23, bigint: 20, text: 25, boolean: 16, timestamptz: 1184 }.freeze
 

@@ -22,8 +22,10 @@ module Hamster
       end
 
       def validate
+        source.row_class.assert_enabled!
         state[:joins].each do |join|
           other = join.args[0]
+          other.row_class.assert_enabled!
           fail!("duplicate source alias #{other.label}", "JOIN") if @sources.any? { |s| s.label == other.label }
           @sources << other
           @left_sources << other.key if join.options[:kind] == :left
@@ -159,6 +161,7 @@ module Hamster
         when :column
           table, name = node.args
           fail!("source #{table.label} is not visible", clause) unless visible.any? { |s| s.key == table.key }
+          table.row_class.assert_column_enabled!(name)
           definition = table.columns[name]
           fail!("#{table.schema}.#{table.name}.#{name} is undeclared", clause) unless definition
           fail!("#{table.schema}.#{table.name}.#{name} is disabled", clause) unless definition[:enabled]

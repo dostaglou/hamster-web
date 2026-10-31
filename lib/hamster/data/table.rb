@@ -9,23 +9,42 @@ module Hamster
     REGISTRY = []
 
     def self.inherited(child)
-      child.set_metadata(table_name, schema_name, columns) unless self == Table
+      child.set_metadata(table_name, schema_name, columns, enabled?) unless self == Table
       REGISTRY << child
     end
 
-    def self.set_metadata(name, schema, definitions)
+    def self.set_metadata(name, schema, definitions, enabled = true)
       @table_name = name
       @schema_name = schema
       @columns = definitions.dup
+      @enabled = enabled
     end
 
     def self.registry
       REGISTRY.dup.freeze
     end
 
-    def self.table(name, schema: "public")
+    def self.table(name, schema: "public", enabled: true)
+      raise Read::ValidationError, "Table enabled must be boolean" unless [true, false].include?(enabled)
+      @enabled = enabled
       @table_name = Read.identifier(name)
       @schema_name = Read.identifier(schema)
+    end
+
+    def self.enabled?
+      @enabled != false
+    end
+
+    def self.assert_enabled!
+      raise Read::DisabledTableError, "#{schema_name}.#{table_name}: table is disabled" unless enabled?
+    end
+
+    def self.assert_column_enabled!(name)
+      assert_enabled!
+      definition = columns[name.to_sym]
+      if definition && !definition[:enabled]
+        raise Read::DisabledColumnError, "#{schema_name}.#{table_name}.#{name}: column is disabled"
+      end
     end
 
     def self.table_name

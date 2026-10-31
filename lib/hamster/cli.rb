@@ -34,7 +34,7 @@ module Hamster
         puts "Usage: hamster new AppName | generate --help | agents:install [--dry-run] | setup | manifest | manifest:check | build | serve | routes | console | db:create | db:migrate | db:rollback [STEP=n] | db:migrate:status | db:migrate:history --json | db:structure:dump | db:validate"
         0
       else
-        if %w[db:rollback db:migrate:history].include?(command)
+        if %w[db:rollback db:migrate:history db:validate].include?(command)
           return dispatch(command, args)
         end
         raise ArgumentError, "Unexpected arguments: #{args.join(' ')}" unless args.empty?
@@ -73,9 +73,21 @@ module Hamster
         require adapter
         if command == "db:validate"
           require_relative "schema_validation"
-          issues = SchemaValidation.run(ApplicationCommands.database)
-          raise issues.join("\n") unless issues.empty?
-          puts "Database declarations validated (#{Table.registry.length} tables); no migrations were run."
+          raise ArgumentError, "Usage: db:validate [--json | --detailed]" unless args.empty? || args == ["--json"] || args == ["--detailed"]
+          report = SchemaValidation.run(ApplicationCommands.database, detailed: true)
+          if args == ["--json"]
+            puts JSON.generate(report)
+          elsif args == ["--detailed"]
+            report["tables"].each do |table|
+              puts "#{table['schema']}.#{table['table']}: enabled=#{table['enabled']} exists=#{table['exists']}"
+              table["columns"].each { |column| puts "  #{column['name']}: enabled=#{column['enabled']} exists=#{column['exists']} checked=#{column['checked']}" }
+            end
+            report["errors"].each { |error| warn error }
+          else
+            raise report["errors"].join("\n") unless report["valid"]
+            puts "Database declarations validated (#{Table.registry.length} tables); no migrations were run."
+          end
+          return report["valid"] ? 0 : 1
         else
           require_relative "console"
           Console.run(ApplicationCommands.build)

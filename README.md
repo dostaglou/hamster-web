@@ -60,6 +60,19 @@ types, and unexpected nullability with a nonzero exit status. It never migrates
 or modifies the schema. Configuration is loaded through config/commands.rb,
 a CRuby-only adapter generated with new applications.
 
+Tables default to `table :posts, enabled: true`. Set `enabled: false` to keep a
+declaration while preventing queries, joins, record access and persistence.
+Subclasses inherit the flag; table and column flags remain independent. Disabled
+columns cannot be read or written, including through record setters. Disabled
+timestamps are excluded from automatic writes. Enabled tables must exist; disabled
+tables skip column validation regardless of physical presence. These flags never
+change the physical schema.
+
+`hamster db:validate --detailed` reports table existence and column check state;
+`--json` emits a versioned report with `valid`, `errors`, and `tables`. Both keep
+validation read-only and return a nonzero status on mismatches. Default output
+remains quiet about disabled declarations.
+
 ## Installation contract and Linux verification
 
 The clean-install gate targets Ruby 3.3.6, Bundler 2.5.23, Hamster
