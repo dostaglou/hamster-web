@@ -93,3 +93,23 @@ promise that application requests can reach PostgreSQL. The route is declared
 in `app/routes/mappings.rb`, and `app/application.rb` bypasses the normal
 database checkout for that path. The Docker health check calls `/up` using the
 configured `PORT`.
+
+### Composable generators
+
+Use `bin/hamster generate --schema` for the installed contract. Standalone
+`action posts/show`, `view posts/show`, and `route posts/show --path /posts/:id`
+compose the same files as `endpoint posts/show --view`. Use `--no-view` for a
+body-only action. `route --to App::Routes::Posts::Show::Action` targets an existing
+statically declared action. Automatic route edits require conventional literal
+Mappings declarations; customized routing receives a diagnostic.
+
+`generate table posts title:text` creates an explicit `Posts` declaration for
+physical table `posts`; it never creates or migrates the database. `generate
+migration create_posts` creates an intentionally unimplemented reversible Ruby
+migration; fill in both methods before running it. `--timestamp YYYYMMDDhhmmss`
+selects an explicit unique version.
+
+All generators accept `--dry-run` and `--json`. JSON lists the exact changed
+relative files, including refreshed manifests. Proposals are parsed and checked
+in staging before writes; collisions, symlinks, and unresolved callbacks fail
+without changing the app. Dry runs leave the app untouched.
