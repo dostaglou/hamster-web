@@ -18,6 +18,24 @@ module Hamster
       end
     end
 
+    def schema_guards(sources)
+      definitions = {}
+      sources.each { |source| Build::Callbacks.scan(Ripper.sexp(source), "", definitions) }
+      tables = []
+      loop do
+        found = definitions.keys.reject { |name| tables.include?(name) }.select do |name|
+          parent = definitions[name][:parent]
+          scopes = name.split("::")[0...-1]
+          parent == "Hamster::Table" || scopes.length.downto(0).any? { |n| tables.include?((scopes.take(n) + [parent]).compact.join("::")) }
+        end
+        break if found.empty?
+        tables.concat(found)
+      end
+      tables.sort.flat_map do |path|
+        ["class #{path}", "  def assert_compiled_record_column_enabled!(name)", "    #{path}.assert_column_enabled!(name)", "    raise Hamster::MissingAttributeError, \"Undeclared attribute #{'#{name}'}\" unless #{path}.columns.key?(name.to_sym)", "  end", "end"]
+      end
+    end
+
     def constant(node)
       return nil unless node.is_a?(Array)
       case node[0]

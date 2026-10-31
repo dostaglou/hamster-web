@@ -69,17 +69,20 @@ module Hamster
       key = name.to_sym
       assert_record_column_enabled!(key)
       raise MissingAttributeError, "Unloaded attribute #{key}" if @partial && !@attributes.key?(key)
-      raise MissingAttributeError, "Undeclared attribute #{key}" unless self.class.columns.key?(key)
       @attributes[key]
     end
 
     def assert_record_column_enabled!(name)
-      raise Read::DisabledTableError, "table is disabled" unless self.class.enabled?
-      definition = self.class.columns[name.to_sym]
-      raise MissingAttributeError, "Undeclared attribute #{name}" unless definition
-      if !definition[:enabled]
-        raise Read::DisabledColumnError, "#{name}: column is disabled"
+      if RUBY_ENGINE == "ruby"
+        self.class.assert_column_enabled!(name)
+        raise MissingAttributeError, "Undeclared attribute #{name}" unless self.class.columns.key?(name.to_sym)
+      else
+        assert_compiled_record_column_enabled!(name)
       end
+    end
+
+    def assert_compiled_record_column_enabled!(name)
+      raise MissingAttributeError, "Run hamster manifest to generate record schema guards"
     end
 
     def write_attribute(name, value)

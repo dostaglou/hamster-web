@@ -31,6 +31,7 @@ module Hamster
         lines = paths.map { |path| %(require_relative "../#{path.delete_suffix('.rb')}") }
         paths.each { |path| lines.concat(QueryAccessors.lines(File.read(File.join(root, path)))) }
         paths.each { |path| lines.concat(QueryAccessors.lines(File.read(File.join(root, path)), declaration: "column", writers: true)) }
+        lines.concat(QueryAccessors.schema_guards(paths.map { |path| File.read(File.join(root, path)) }))
         lines << 'require_relative "callback_registry"'
         lines << 'require_relative "view_registry"'
         lines << 'require_relative "asset_registry"'
