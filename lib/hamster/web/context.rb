@@ -129,6 +129,15 @@ module Hamster
       @multipart.close if @multipart
     end
 
+    def valid_csrf?(expected)
+      return false if expected.to_s.empty? || !same_origin?
+      supplied = env["HTTP_X_CSRF_TOKEN"] || form["csrf_token"]
+      return false unless supplied.is_a?(String) && supplied.bytesize == expected.to_s.bytesize
+      difference = 0
+      expected.to_s.bytes.each_with_index { |byte, index| difference |= byte ^ supplied.getbyte(index) }
+      difference == 0
+    end
+
     def same_origin?
       expected = "#{env.fetch('rack.url_scheme', 'http')}://#{env.fetch('HTTP_HOST', '')}"
       env["HTTP_ORIGIN"] == expected

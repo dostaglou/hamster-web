@@ -439,3 +439,33 @@ loading credentials, or connecting to a database. It reports dynamic/unresolved
 references instead of claiming complete Ruby analysis. Test-to-action links use
 generator path conventions and are explicitly inferred. No live DB inspection
 is performed. Graph facts update automatically after renames and new components.
+
+### Explicit input forms
+
+Subclass `Hamster::Form` and declare literal fields, for example `field :title,
+required: true, max_length: 200`, `field :count, type: :integer`, or `field
+:published, type: :boolean`. Construct it with a Hash of scalar input values.
+`valid?`, field-keyed `errors` and `error_codes`, preserved `values`, and explicit
+`attributes` keep missing, blank, malformed, invalid and unauthorized input
+separate. Invalid forms refuse `attributes`; undeclared fields fail validation.
+Sensitive fields opt into `sensitive: true` and are excluded from preserved values.
+
+Optional `model Post, operation: :create` (or `:update`) checks declared column
+flags and write permissions; it never changes or inspects the physical schema.
+Form validation performs no persistence. On invalid submission, construct
+`Hamster::View::Form` with action, explicit csrf_token, values and errors, render
+labels/inputs/error_summary, and return 422 for HTML or Turbo Stream responses.
+Valid writes normally redirect with 303. POST URL-encoded forms may use the
+helper's `_method` field for PATCH/DELETE; other methods cannot be overridden.
+
+CSRF token generation/storage belongs to the application's session policy.
+Before processing a mutation, call `context.valid_csrf?(expected_session_token)`
+in an explicit before hook. It requires same-origin metadata and compares the
+submitted form/header token without early per-byte exits. Empty tokens fail.
+The rendering helper escapes tokens, labels, user values and errors; password
+inputs are never repopulated. `csrf_token` and `_method` are reserved control
+fields and are never returned as persistence attributes.
+
+`generate form posts/create` creates a `PostsCreateForm` and a compiled
+`forms/posts/create` template taking an explicit `form` local. Customize fields,
+authorized action and CSRF policy, then run manifest/check/test/build.

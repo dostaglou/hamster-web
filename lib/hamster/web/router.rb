@@ -12,6 +12,11 @@ module Hamster
     def call(env, connection = nil)
       method = env.fetch("REQUEST_METHOD", "GET").upcase
       path = env.fetch("PATH_INFO", "/")
+      context = Context.new(env, connection)
+      if method == "POST" && env.fetch("CONTENT_TYPE", "").split(";", 2).first == "application/x-www-form-urlencoded"
+        override = context.form["_method"]
+        method = override if ["PATCH", "DELETE"].include?(override)
+      end
       route = @routes.find { |candidate| candidate.match(method, path) }
       route ||= @routes.find { |candidate| candidate.match("GET", path) } if method == "HEAD"
       unless route
@@ -22,7 +27,6 @@ module Hamster
       end
 
       env["route_params"] = route.match(method == "HEAD" && route.method == "GET" ? "GET" : method, path)
-      context = Context.new(env, connection)
       begin
         context.finish_response(route.action.new(context).dispatch)
       rescue StandardError

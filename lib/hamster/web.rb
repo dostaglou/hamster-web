@@ -15,3 +15,5 @@ require_relative "web/multipart"
 require_relative "web/context"
 require_relative "web/router"
 require_relative "web/application"
+
+require_relative "form"

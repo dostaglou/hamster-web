@@ -77,6 +77,22 @@ module Hamster
         HTML.tag(:p, message, id: "#{field_id(name)}-error", class: "error", role: "alert")
       end
 
+      def label(name, text = nil, attributes = {})
+        raise ArgumentError, "label attributes cannot override for" if attributes.keys.any? { |key| key.to_s == "for" }
+        HTML.tag(:label, text || name.to_s.tr("_", " ").capitalize, attributes.merge(for: field_id(name)))
+      end
+
+      def error_summary
+        entries = @errors.flat_map do |name, messages|
+          Array(messages).map { |message| HTML.tag(:li, "#{name}: #{message}") }
+        end
+        entries.empty? ? HTML.join([]) : HTML.tag(:div, HTML.tag(:ul, HTML.join(entries)), role: "alert", class: "errors")
+      end
+
+      def finish
+        HTML.raw_reviewed("</form>")
+      end
+
       def field_id(name)
         base = field_name(name).tr("_", "-")
         @namespace ? "#{@namespace}-#{base}" : base
@@ -108,7 +124,8 @@ module Hamster
       end
 
       def error_for(name)
-        @errors.key?(name.to_sym) ? @errors[name.to_sym] : @errors[name.to_s]
+        value = @errors.key?(name.to_sym) ? @errors[name.to_sym] : @errors[name.to_s]
+        value.is_a?(Array) ? value.join("; ") : value
       end
 
       def reject_value_attribute!(attributes)

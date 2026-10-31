@@ -128,9 +128,9 @@ module Hamster
             add("column:#{owner}:#{name}", "column", name, path, line(node), attrs)
             edge(id, "column:#{owner}:#{name}", "declares")
           end
-        when "include", "from"
+        when "include", "from", "model"
           reference = constant(args.first)
-          @references << [owner, reference, nil, path, line(node), method == "include" ? "includes" : "from"] if reference
+          @references << [owner, reference, nil, path, line(node), method == "include" ? "includes" : (method == "model" ? "uses_model" : "from")] if reference
         when "before_action", "after_action"
           args.each do |arg|
             target = literal(arg)
@@ -168,6 +168,7 @@ module Hamster
       return "action" if parent == "Hamster::Action::Base"
       return "table" if parent == "Hamster::Table"
       return "query" if parent == "Hamster::Query"
+      return "form" if parent == "Hamster::Form"
       resolved = resolve(parent, name.split("::")[0...-1].join("::"))
       resolved ? kind(resolved, seen + [name]) : nodes["class:#{name}"]["kind"]
     end
